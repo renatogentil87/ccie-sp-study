@@ -21,52 +21,52 @@
 
 ---
 
-## Section 1 — 6PE (Global IPv6 over IPv4 MPLS)
+## Section 1 — 6PE (Global IPv6 over IPv4 MPLS) [5 points]
 
 **Concept:** PEs exchange IPv6 prefixes over the existing IPv4 iBGP session (via RR). Next-hop is encoded as an IPv4-mapped IPv6 address (`::ffff:a.b.c.d`). The core label switches on the IPv4 LSP; PEs impose an IPv6 explicit-null (or per-prefix) label. P routers never see IPv6.
 
-- [ ] **Task 1.1 — Enable IPv6 forwarding on PEs only.**
+- [ ] **Task 1.1 — Enable IPv6 forwarding on PEs only. [1 point]**
   On R1 and R2, enable `ipv6 unicast-routing` and global IPv6 CEF. Confirm R3/R4 remain IPv4-only.
   *Verify:* `show ipv6 cef` present on R1/R2; absent/empty on R3/R4.
 
-- [ ] **Task 1.2 — Add IPv6 PE-CE addressing (global).**
+- [ ] **Task 1.2 — Add IPv6 PE-CE addressing (global). [1 point]**
   Assign dual-stack IPv6 on the R1↔R9 PE-CE link (`192.168.1.0/24` link) and the R2↔R10 PE-CE link (`192.168.4.0/24` link). Use `2001:db8:1:19::/64` (R1-R9) and `2001:db8:1:210::/64` (R2-R10). Advertise CE IPv6 loopbacks (R9, R10) toward the PEs.
   *Verify:* PE can ping CE IPv6 link + loopback directly.
 
-- [ ] **Task 1.3 — Activate the IPv6 address-family on the PE↔RR iBGP sessions.**
+- [ ] **Task 1.3 — Activate the IPv6 address-family on the PE↔RR iBGP sessions. [2 points]**
   On R1 and R2, under BGP activate the existing RR neighbors (R7 `150.1.7.7`, R8 `150.1.8.8`) in `address-family ipv6`. The transport session stays IPv4; only the AFI/SAFI is added.
   *Key requirement:* set `send-label` so IPv6 prefixes carry an MPLS label. Without a label the core cannot switch IPv6.
   *Verify:* `show bgp ipv6 unicast summary` shows the RR neighbors Up with a nonzero prefix count once CE routes exist.
 
-- [ ] **Task 1.4 — Fix the IPv6 next-hop so it is IPv4-mapped.**
+- [ ] **Task 1.4 — Fix the IPv6 next-hop so it is IPv4-mapped. [1 point]**
   Ensure the PE advertises an IPv4-mapped next-hop (`::ffff:150.1.1.1` for R1) so the receiving PE resolves it over the IPv4 LSP. Confirm the RRs reflect `ipv6` without rewriting the next-hop (RRs do not need IPv6 forwarding, only the AF activated for reflection).
   *Verify:* On R2, `show bgp ipv6 unicast <R9-loopback>` → next-hop `::FFFF:150.1.1.1`, with an in/out label bound.
 
 ---
 
-## Section 2 — 6VPE (IPv6 L3VPN)
+## Section 2 — 6VPE (IPv6 L3VPN) [5 points]
 
 **Concept:** Same PE/RR plumbing but IPv6 lives inside a VRF. The VPN label (bottom) identifies the VRF/CE; the IGP/LDP IPv4 label (top) carries the packet across the core. BGP SAFI is `vpnv6`.
 
-- [ ] **Task 2.1 — Add the IPv6 address-family to an existing VRF (dual-stack).**
+- [ ] **Task 2.1 — Add the IPv6 address-family to an existing VRF (dual-stack). [1 point]**
   Take the Customer **Blue** VRF already defined on R1 (serving R32). Add an `address-family ipv6` under the VRF and attach the same RD, plus import/export route-targets for Blue. The VRF now carries both IPv4 and IPv6 (dual-stack VRF).
   *Verify:* `show vrf detail <Blue>` lists both IPv4 and IPv6 AFs with RD + RTs.
 
-- [ ] **Task 2.2 — Configure IPv6 PE-CE inside the VRF.**
+- [ ] **Task 2.2 — Configure IPv6 PE-CE inside the VRF. [1 point]**
   On R1 g1/0... — use the Blue PE-CE link to R32 (`192.168.3.0/24`). Add VRF IPv6 addressing `2001:db8:1:332::/64` and run eBGP (AS 65025) for IPv6 in the VRF address-family (per-VRF or per-neighbor IPv6 AF).
   *Verify:* `show bgp vpnv6 unicast vrf Blue summary` → R32 neighbor Up.
 
-- [ ] **Task 2.3 — Activate VPNv6 on the PE↔RR sessions.**
+- [ ] **Task 2.3 — Activate VPNv6 on the PE↔RR sessions. [2 points]**
   On R1, R2, R7, R8 activate RR neighbors under `address-family vpnv6 unicast`. On R7/R8 set these as route-reflector-clients and ensure `send-community extended` (RTs are extended communities — without them VPNv6 import fails).
   *Verify:* `show bgp vpnv6 unicast all summary` on PEs shows RR Up; `show bgp vpnv6 unicast all` on RR shows reflected Blue IPv6 prefixes.
 
-- [ ] **Task 2.4 — Build the second VRF endpoint and import.**
+- [ ] **Task 2.4 — Build the second VRF endpoint and import. [1 point]**
   Add the Blue IPv6 VRF to R2 (or confirm Blue reaches R2 per the Blue 3-AS design). Confirm RT import places the remote CE IPv6 prefix into the local VRF with a VPN label.
   *Verify:* `show bgp vpnv6 unicast vrf Blue` → remote prefix present, next-hop = remote PE loopback (IPv4-mapped), VPN label assigned.
 
 ---
 
-## Section 3 — Verification (End-to-End IPv6 over IPv4 MPLS)
+## Section 3 — Verification (End-to-End IPv6 over IPv4 MPLS) [0 points — verification]
 
 - [ ] **Task 3.1 — Confirm the core is still IPv4-only.**
   On R3 and R4: `show ipv6 route` empty, `show mpls forwarding-table` shows only IPv4 FECs. The transit label stack must be IPv4 LDP labels only.
@@ -85,23 +85,50 @@
 
 ---
 
-## Section 4 — Troubleshooting Drills
+## Section 4 — Troubleshooting Drills [5 points]
 
 Break it, diagnose, fix. Snapshot each root cause.
 
-- [ ] **Task 4.1 — IPv6 route not landing in VRF.**
+- [ ] **Task 4.1 — IPv6 route not landing in VRF. [2 points]**
   Symptom: remote Blue IPv6 prefix missing from `show bgp vpnv6 unicast vrf Blue`.
   Investigate in order: (a) RT import/export mismatch between PEs, (b) `send-community extended` missing on PE→RR, (c) VPNv6 AF not activated on RR for that neighbor, (d) RD mismatch.
   *Deliverable:* identify which layer failed and how you confirmed it (which `show` revealed it).
 
-- [ ] **Task 4.2 — Label not allocated for IPv6 prefix.**
+- [ ] **Task 4.2 — Label not allocated for IPv6 prefix. [2 points]**
   Symptom: 6PE prefix present in BGP but no label → packets black-holed / punted.
   Investigate: missing `send-label` on the IPv6 AF neighbor; or `no mpls ip`/CEF disabled; or next-hop not IPv4-mapped so no LSP resolves.
   *Verify fix:* `show bgp ipv6 unicast <prefix>` shows in/out label; `show mpls forwarding-table` has the FEC.
 
-- [ ] **Task 4.3 — Next-hop unreachable.**
+- [ ] **Task 4.3 — Next-hop unreachable. [1 point]**
   Symptom: BGP prefix valid but not best / not installed. Confirm the IPv4-mapped next-hop (`::ffff:x.x.x.x`) resolves to a labeled IPv4 LSP. A plain IGP route without a label will still fail for VPN traffic.
   *Verify:* `show ipv6 cef <prefix>` → labeled output path.
+
+---
+
+## Scoring Summary
+
+| Section | Max Points | Difficulty Breakdown |
+|---------|-----------|---------------------|
+| Section 1: 6PE (global IPv6) | 5 | CCIE-level: IPv6 AF + send-label + IPv4-mapped NH |
+| Section 2: 6VPE (IPv6 L3VPN) | 5 | CCIE-level: vpnv6 AF, dual-stack VRF, RT import |
+| Section 3: Verification | 0 | Verification — no points |
+| Section 4: Troubleshooting Drills | 5 | CCIE-level: break-and-fix root causes |
+| **Total** | **15** | |
+
+**Scoring rules:**
+- Configured from memory, no help: **full points**
+- Configured after using `?` on router: **2/3 of task points (round up)**
+- Configured after checking solution: **1/3 of task points (round up)**
+- Skipped: **0 points**
+- Verification tasks: **0 points** (but you must do them to catch errors)
+
+**Rating:**
+```
+13-15 points:  CCIE ready for this topic
+10-12 points:  Strong, minor gaps to review
+6-9 points:    Needs more practice
+Below 6:       Review the topic theory before retrying
+```
 
 ---
 

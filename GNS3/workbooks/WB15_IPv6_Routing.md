@@ -29,110 +29,140 @@
 
 ---
 
-## Section 1 — IPv6 Addressing (Dual-Stack)
+## Section 1 — IPv6 Addressing (Dual-Stack) [1 point]
 
-- [ ] **Task 1.1 — Enable IPv6 globally.**
+- [ ] **Task 1.1 — Enable IPv6 globally. [1 point]**
+
   `ipv6 unicast-routing` + IPv6 CEF on **every** router R1–R30 (including P routers this time — native IPv6 core).
   *Verify:* `show ipv6 cef` populated on all.
 
-- [ ] **Task 1.2 — Address all core links (per the scheme).**
+- [ ] **Task 1.2 — Address all core links (per the scheme). [0 points — included above]**
   Add IPv6 to every intra-AS core link in all 3 ASes alongside existing IPv4 (dual-stack).
   *Verify:* `show ipv6 interface brief`; ping6 each directly-connected neighbor.
 
-- [ ] **Task 1.3 — Address IPv6 loopbacks.**
+- [ ] **Task 1.3 — Address IPv6 loopbacks. [0 points — included above]**
   `2001:db8:<AS>::<R>/128` on Lo0 of every router.
   *Verify:* loopbacks present in `show ipv6 interface brief`.
 
-- [ ] **Task 1.4 — Address the inter-AS links.**
+- [ ] **Task 1.4 — Address the inter-AS links. [0 points — included above]**
   R5↔R11, R6↔R12, R6↔R20, R12↔R21 get dual-stack IPv6 (neutral `2001:db8:0:XY::/64` or either AS's space — pick a convention and document it).
   *Verify:* ping6 across each inter-AS link.
 
 ---
 
-## Section 2 — IS-IS for IPv6 (AS65100 & AS65300, single-topology)
+## Section 2 — IS-IS for IPv6 (AS65100 & AS65300, single-topology) [2 points]
 
 **Concept:** Reuse the existing IS-IS instance; enable the IPv6 address-family in **single-topology** mode (IPv4 and IPv6 share one SPF/topology — requires congruent topology, which this lab has).
 
-- [ ] **Task 2.1 — Enable IPv6 under IS-IS on AS65100.**
+- [ ] **Task 2.1 — Enable IPv6 under IS-IS on AS65100. [1 point]**
   On R1–R8, add `address-family ipv6` (single-topology) to the IS-IS process and `ipv6 router isis` on the core interfaces.
   *Verify:* `show isis ipv6 topology` / `show ipv6 route isis` → all 65100 loopbacks learned.
 
-- [ ] **Task 2.2 — Enable IPv6 under IS-IS on AS65300.**
+- [ ] **Task 2.2 — Enable IPv6 under IS-IS on AS65300. [1 point]**
   Repeat on R20–R23, R30.
   *Verify:* `show ipv6 route isis` on R23 shows R20/R21/R22/R30 loopbacks.
 
-- [ ] **Task 2.3 — Confirm single-topology correctness.**
+- [ ] **Task 2.3 — Confirm single-topology correctness. [0 points — verification]**
   Verify IPv4 and IPv6 adjacencies ride the same adjacency (single-topology) and no interface is IPv6-only (would break single-topology). Note where you'd need **multi-topology** instead and why you don't here.
   *Verify:* `show clns neighbors` + `show isis ipv6 topology` consistent.
 
 ---
 
-## Section 3 — OSPFv3 for IPv6 (AS65200)
+## Section 3 — OSPFv3 for IPv6 (AS65200) [2 points]
 
 **Concept:** OSPFv3 is a separate process from OSPFv2 (not an AF on the v2 process in this IOS); enable per-interface in Area 0.
 
-- [ ] **Task 3.1 — Enable OSPFv3 Area 0 on AS65200 core.**
+- [ ] **Task 3.1 — Enable OSPFv3 Area 0 on AS65200 core. [2 points]**
   On R11–R16, R19 start an OSPFv3 process (router-id required — reuse the IPv4 loopback as RID) and enable `ipv6 ospf <pid> area 0` on core interfaces + loopbacks.
   *Verify:* `show ipv6 ospf neighbor` Full on all core adjacencies; `show ipv6 route ospf` has all 65200 loopbacks.
 
-- [ ] **Task 3.2 — Handle the OSPF PE-CE case (R15↔R17).**
+- [ ] **Task 3.2 — Handle the OSPF PE-CE case (R15↔R17). [0 points — verification]**
   Decide whether R17 participates in IPv6 (dual-stack the PE-CE) or stays IPv4-only; document.
   *Verify:* consistent with your choice.
 
 ---
 
-## Section 4 — MP-BGP IPv6
+## Section 4 — MP-BGP IPv6 [5 points]
 
 **Concept:** Carry IPv6 unicast in BGP: eBGP IPv6 between ASBRs, iBGP IPv6 reflected by the RRs. Use IPv6 transport (peer over IPv6 addresses) for a clean native design.
 
-- [ ] **Task 4.1 — eBGP IPv6 between ASBRs.**
+- [ ] **Task 4.1 — eBGP IPv6 between ASBRs. [2 points]**
   Bring up IPv6-unicast eBGP on R5↔R11, R6↔R12, R6↔R20, R12↔R21 (peer over the inter-AS IPv6 link addresses). Activate `address-family ipv6 unicast`.
   *Verify:* `show bgp ipv6 unicast summary` Up on each pair.
 
-- [ ] **Task 4.2 — iBGP IPv6 via RRs.**
+- [ ] **Task 4.2 — iBGP IPv6 via RRs. [2 points]**
   Activate IPv6 unicast on the PE/ASBR ↔ RR sessions (R7/R8, R19, R30) and set route-reflector-client in the IPv6 AF. Advertise PE loopbacks/customer prefixes in IPv6.
   *Verify:* `show bgp ipv6 unicast` on RR shows reflected prefixes; interior routers learn remote-AS IPv6 prefixes.
 
-- [ ] **Task 4.3 — Next-hop handling.**
+- [ ] **Task 4.3 — Next-hop handling. [1 point]**
   Ensure ASBRs do `next-hop-self` in the IPv6 AF toward RRs (interior routers can't reach the far-AS link-local/global next-hop otherwise).
   *Verify:* `show bgp ipv6 unicast <remote-prefix>` → next-hop = local ASBR, reachable via IGP.
 
 ---
 
-## Section 5 — IPv6 L3VPN (6VPE)
+## Section 5 — IPv6 L3VPN (6VPE) [5 points]
 
 **Concept:** Same as WB12 Section 2 but applied natively across the dual-stacked lab — VPNv6 SAFI, VRF IPv6 AF, IPv6 PE-CE. (If WB12 is already done, extend that config; here reconcile it with the now-native IPv6 core.)
 
-- [ ] **Task 5.1 — Add IPv6 AF to a customer VRF.**
+- [ ] **Task 5.1 — Add IPv6 AF to a customer VRF. [2 points]**
   Pick **Blue** (spans 3 ASes) or **Yellow**. Add `address-family ipv6` to the VRF with RD + import/export RTs.
   *Verify:* `show vrf detail` shows the IPv6 AF.
 
-- [ ] **Task 5.2 — IPv6 PE-CE.**
+- [ ] **Task 5.2 — IPv6 PE-CE. [1 point]**
   Configure IPv6 on a PE-CE link inside the VRF (e.g. R20↔R24 Yellow, or R1↔R32 Blue) and run IPv6 eBGP (or static) PE-CE.
   *Verify:* `show bgp vpnv6 unicast vrf <name> summary` → CE neighbor Up.
 
-- [ ] **Task 5.3 — Activate VPNv6 on PE↔RR + inter-AS.**
+- [ ] **Task 5.3 — Activate VPNv6 on PE↔RR + inter-AS. [2 points]**
   Activate `address-family vpnv6 unicast` PE↔RR, with `send-community extended`. For the cross-AS VPN, confirm the inter-AS method (Option A/B/C from earlier workbooks) carries VPNv6.
   *Verify:* `show bgp vpnv6 unicast all` shows remote VRF prefixes with VPN label + remote-PE next-hop.
 
 ---
 
-## Section 6 — Verification (End-to-End IPv6 across all 3 ASes)
+## Section 6 — Verification (End-to-End IPv6 across all 3 ASes) [0 points — verification]
 
-- [ ] **Task 6.1 — Per-AS IGP IPv6 complete.**
+- [ ] **Task 6.1 — Per-AS IGP IPv6 complete. [0 points — verification]**
   Each AS has full intra-AS IPv6 loopback reachability (IS-IS in 65100/65300, OSPFv3 in 65200).
 
-- [ ] **Task 6.2 — Inter-AS IPv6 via BGP.**
+- [ ] **Task 6.2 — Inter-AS IPv6 via BGP. [0 points — verification]**
   From R1, reach an AS65300 loopback (e.g. `2001:db8:3::23`) via MP-BGP IPv6. `traceroute ipv6` crosses the ASBRs.
   *Verify:* `ping ipv6 2001:db8:3::23 source 2001:db8:1::1` succeeds.
 
-- [ ] **Task 6.3 — 6VPE end-to-end.**
+- [ ] **Task 6.3 — 6VPE end-to-end. [0 points — verification]**
   Customer IPv6 CE-to-CE across ASes inside the VRF (Blue spanning 65100/65200/65300).
   *Verify:* VRF ping6 CE→CE; `traceroute` shows MPLS transport + VPN label.
 
-- [ ] **Task 6.4 — Dual-stack sanity.**
+- [ ] **Task 6.4 — Dual-stack sanity. [0 points — verification]**
   Confirm IPv4 service (WB00–11) is **unaffected** — all prior IPv4 reachability still works alongside the new IPv6.
   *Verify:* spot-check IPv4 ping across each AS; `show ip route` + `show ipv6 route` both healthy.
+
+---
+
+## Scoring Summary
+
+| Section | Max Points | Difficulty Breakdown |
+|---------|-----------|---------------------|
+| Section 1: IPv6 Addressing (dual-stack) | 1 | Basic: enable IPv6, address links/loopbacks |
+| Section 2: IS-IS for IPv6 (single-topology) | 2 | Standard: IPv6 AF under IS-IS in 65100/65300 |
+| Section 3: OSPFv3 for IPv6 (AS65200) | 2 | Standard: OSPFv3 Area 0 |
+| Section 4: MP-BGP IPv6 | 5 | CCIE-level: eBGP/iBGP IPv6 + next-hop-self |
+| Section 5: IPv6 L3VPN (6VPE) | 5 | CCIE-level: vpnv6 AF, VRF IPv6, IPv6 PE-CE |
+| Section 6: Verification | 0 | Verification — no points |
+| **Total** | **15** | |
+
+**Scoring rules:**
+- Configured from memory, no help: **full points**
+- Configured after using `?` on router: **2/3 of task points (round up)**
+- Configured after checking solution: **1/3 of task points (round up)**
+- Skipped: **0 points**
+- Verification tasks: **0 points** (but you must do them to catch errors)
+
+**Rating:**
+```
+13-15 points:  CCIE ready for this topic
+10-12 points:  Strong, minor gaps to review
+6-9 points:    Needs more practice
+Below 6:       Review the topic theory before retrying
+```
 
 ---
 

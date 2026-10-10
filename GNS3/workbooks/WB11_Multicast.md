@@ -21,13 +21,13 @@
 
 ---
 
-## Section 1 — PIM-SM in AS65100 (RP = R7)
+## Section 1 — PIM-SM in AS65100 (RP = R7) [2 points]
 
-- [ ] **Task 1.1** — Enable multicast routing globally on R1-R8.
-- [ ] **Task 1.2** — Enable **PIM sparse-mode** on all AS65100 core interfaces (per the Full Link Map) and on relevant PE-CE/source/receiver interfaces.
-- [ ] **Task 1.3** — Configure **R7 as the RP** (static RP first; optionally Auto-RP or BSR as a variant — document which).
-- [ ] **Task 1.4** — Join a group from a receiver (IGMP join on a receiver interface) and start a source for the same group.
-- [ ] **Task 1.5** — Confirm the shared tree **(\*,G)** rooted at R7 forms, then the **(S,G)** shortest-path tree after SPT switchover.
+- [ ] **Task 1.1 [0 points — included below]** — Enable multicast routing globally on R1-R8.
+- [ ] **Task 1.2 [1 point]** — Enable **PIM sparse-mode** on all AS65100 core interfaces (per the Full Link Map) and on relevant PE-CE/source/receiver interfaces.
+- [ ] **Task 1.3 [1 point]** — Configure **R7 as the RP** (static RP first; optionally Auto-RP or BSR as a variant — document which).
+- [ ] **Task 1.4 [0 points — verification]** — Join a group from a receiver (IGMP join on a receiver interface) and start a source for the same group.
+- [ ] **Task 1.5 [0 points — verification]** — Confirm the shared tree **(\*,G)** rooted at R7 forms, then the **(S,G)** shortest-path tree after SPT switchover.
 
 **Verify / Snapshot**
 - [ ] `show ip pim neighbor` — all core PIM adjacencies UP
@@ -38,11 +38,11 @@
 
 ---
 
-## Section 2 — PIM-SSM (232.0.0.0/8)
+## Section 2 — PIM-SSM (232.0.0.0/8) [3 points]
 
-- [ ] **Task 2.1** — Enable **SSM** for the default range **232/8** in AS65100.
-- [ ] **Task 2.2** — Configure the receiver for an **IGMPv3** source-specific join (S,G) in the SSM range (no RP, no shared tree).
-- [ ] **Task 2.3** — Confirm an (S,G) SPT builds directly, with **no (\*,G)** and no RP involvement.
+- [ ] **Task 2.1 [1 point]** — Enable **SSM** for the default range **232/8** in AS65100.
+- [ ] **Task 2.2 [2 points]** — Configure the receiver for an **IGMPv3** source-specific join (S,G) in the SSM range (no RP, no shared tree).
+- [ ] **Task 2.3 [0 points — verification]** — Confirm an (S,G) SPT builds directly, with **no (\*,G)** and no RP involvement.
 
 **Verify / Snapshot**
 - [ ] `show ip pim rp mapping` — SSM range shows no RP (SSM)
@@ -52,15 +52,15 @@
 
 ---
 
-## Section 3 — MSDP (inter-domain, R7 ↔ R19)
+## Section 3 — MSDP (inter-domain, R7 ↔ R19) [5 points]
 
 Inter-domain source discovery between **R7 (AS65100 RP)** and **R19 (AS65200 RP)**.
 
-- [ ] **Task 3.1** — Ensure inter-AS unicast reachability between R7 and R19 loopbacks (via the inter-AS link / BGP) — MSDP peering + RPF depend on it.
-- [ ] **Task 3.2** — Configure an **MSDP peer** session between R7 and R19 (originator-id = loopback).
-- [ ] **Task 3.3** — Confirm **SA (Source-Active)** messages are exchanged so each RP learns about active sources in the other domain.
-- [ ] **Task 3.4** — Start a source in one AS; confirm the receiver in the other AS joins and receives traffic via the inter-domain SPT.
-- [ ] **Task 3.5** — (Optional hardening) apply an SA filter to control which groups/sources are advertised.
+- [ ] **Task 3.1 [1 point]** — Ensure inter-AS unicast reachability between R7 and R19 loopbacks (via the inter-AS link / BGP) — MSDP peering + RPF depend on it.
+- [ ] **Task 3.2 [2 points]** — Configure an **MSDP peer** session between R7 and R19 (originator-id = loopback).
+- [ ] **Task 3.3 [0 points — verification]** — Confirm **SA (Source-Active)** messages are exchanged so each RP learns about active sources in the other domain.
+- [ ] **Task 3.4 [1 point]** — Start a source in one AS; confirm the receiver in the other AS joins and receives traffic via the inter-domain SPT.
+- [ ] **Task 3.5 [1 point]** — (Optional hardening) apply an SA filter to control which groups/sources are advertised.
 
 **Verify / Snapshot**
 - [ ] `show ip msdp peer` — session UP (Established)
@@ -71,15 +71,15 @@ Inter-domain source discovery between **R7 (AS65100 RP)** and **R19 (AS65200 RP)
 
 ---
 
-## Section 4 — mVPN Profile 0 (Default MDT, GRE/PIM)
+## Section 4 — mVPN Profile 0 (Default MDT, GRE/PIM) [5 points]
 
 VRF **GREEN**. Draft-Rosen style: default MDT with PIM in the core (GRE encapsulation).
 
-- [ ] **Task 4.1** — Enable **multicast routing within VRF GREEN** on the Green PEs.
-- [ ] **Task 4.2** — Configure the **default MDT group** for VRF GREEN (a core multicast group that forms the default MDT between all Green PEs via core PIM).
-- [ ] **Task 4.3** — Ensure the **core (global) PIM** carries the default MDT group (RP = R7 handles the MDT group in the provider core).
-- [ ] **Task 4.4** — Configure a **data MDT** range + **threshold** so high-rate (S,G) customer streams move off the default MDT onto a data MDT.
-- [ ] **Task 4.5** — Join/source customer multicast inside VRF GREEN across PEs and confirm it rides the default MDT, then switches to a data MDT above threshold.
+- [ ] **Task 4.1 [1 point]** — Enable **multicast routing within VRF GREEN** on the Green PEs.
+- [ ] **Task 4.2 [1 point]** — Configure the **default MDT group** for VRF GREEN (a core multicast group that forms the default MDT between all Green PEs via core PIM).
+- [ ] **Task 4.3 [1 point]** — Ensure the **core (global) PIM** carries the default MDT group (RP = R7 handles the MDT group in the provider core).
+- [ ] **Task 4.4 [2 points]** — Configure a **data MDT** range + **threshold** so high-rate (S,G) customer streams move off the default MDT onto a data MDT.
+- [ ] **Task 4.5 [0 points — verification]** — Join/source customer multicast inside VRF GREEN across PEs and confirm it rides the default MDT, then switches to a data MDT above threshold.
 
 **Verify / Snapshot**
 - [ ] `show ip pim mdt` / `show ip pim vrf GREEN mdt` — default + data MDT state
@@ -90,12 +90,12 @@ VRF **GREEN**. Draft-Rosen style: default MDT with PIM in the core (GRE encapsul
 
 ---
 
-## Section 5 — mVPN Profile 3 (BGP A-D + PIM C-mcast signaling)
+## Section 5 — mVPN Profile 3 (BGP A-D + PIM C-mcast signaling) [5 points]
 
-- [ ] **Task 5.1** — Enable the **BGP MVPN (ipv4 mvpn) address-family** on the Green PEs + RR for mVPN auto-discovery.
-- [ ] **Task 5.2** — Configure Profile 3 (default MDT via **PIM** in core, but **BGP auto-discovery** of PE membership) — PEs discover each other via BGP MVPN A-D routes rather than relying solely on core PIM MDT joins.
-- [ ] **Task 5.3** — Confirm **C-multicast signaling** (customer join state) is carried per the profile (PIM-based C-mcast in Profile 3).
-- [ ] **Task 5.4** — Validate Green customer multicast works end-to-end under Profile 3.
+- [ ] **Task 5.1 [2 points]** — Enable the **BGP MVPN (ipv4 mvpn) address-family** on the Green PEs + RR for mVPN auto-discovery.
+- [ ] **Task 5.2 [2 points]** — Configure Profile 3 (default MDT via **PIM** in core, but **BGP auto-discovery** of PE membership) — PEs discover each other via BGP MVPN A-D routes rather than relying solely on core PIM MDT joins.
+- [ ] **Task 5.3 [1 point]** — Confirm **C-multicast signaling** (customer join state) is carried per the profile (PIM-based C-mcast in Profile 3).
+- [ ] **Task 5.4 [0 points — verification]** — Validate Green customer multicast works end-to-end under Profile 3.
 
 **Verify / Snapshot**
 - [ ] `show bgp ipv4 mvpn all` — A-D routes (Type 1 intra-AS, membership)
@@ -105,7 +105,7 @@ VRF **GREEN**. Draft-Rosen style: default MDT with PIM in the core (GRE encapsul
 
 ---
 
-## Section 6 — mVPN Verification (consolidated)
+## Section 6 — mVPN Verification (consolidated) [0 points — verification]
 
 Confirm the full mVPN picture with the key show commands:
 
@@ -119,6 +119,35 @@ Confirm the full mVPN picture with the key show commands:
 - [ ] All four show families consistent and non-empty
 - [ ] End-to-end Green multicast receiver gets source traffic across the SP core
 - [ ] **Snapshot:** `WB11-06-mvpn-verify`
+
+---
+
+## Scoring Summary
+
+| Section | Max Points | Difficulty Breakdown |
+|---------|-----------|---------------------|
+| Section 1: PIM-SM (RP=R7) | 2 | Standard: sparse-mode + static RP |
+| Section 2: PIM-SSM (232/8) | 3 | Intermediate: IGMPv3 source-specific join |
+| Section 3: MSDP (R7↔R19) | 5 | CCIE-level: inter-domain SA + SA filter |
+| Section 4: mVPN Profile 0 | 5 | CCIE-level: default + data MDT, GRE/PIM |
+| Section 5: mVPN Profile 3 | 5 | CCIE-level: BGP A-D + PIM C-mcast |
+| Section 6: mVPN Verification | 0 | Verification — no points |
+| **Total** | **20** | |
+
+**Scoring rules:**
+- Configured from memory, no help: **full points**
+- Configured after using `?` on router: **2/3 of task points (round up)**
+- Configured after checking solution: **1/3 of task points (round up)**
+- Skipped: **0 points**
+- Verification tasks: **0 points** (but you must do them to catch errors)
+
+**Rating:**
+```
+17-20 points:  CCIE ready for this topic
+13-16 points:  Strong, minor gaps to review
+9-12 points:   Needs more practice
+Below 9:       Review the topic theory before retrying
+```
 
 ---
 

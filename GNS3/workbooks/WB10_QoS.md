@@ -21,12 +21,12 @@
 
 ---
 
-## Section 1 — Classification
+## Section 1 — Classification [2 points]
 
-- [ ] **Task 1.1** — Create class-maps matching on **DSCP** (e.g. EF, AF41, AF21, default) for voice / interactive / bulk / best-effort.
-- [ ] **Task 1.2** — Create a class-map matching on **protocol** (NBAR `match protocol`) for an application class.
-- [ ] **Task 1.3** — Create a class-map matching an **access-group** (ACL) for a customer subnet / flow.
-- [ ] **Task 1.4** — Combine with `match-any` vs `match-all` and confirm you understand the logic difference.
+- [ ] **Task 1.1 [1 point]** — Create class-maps matching on **DSCP** (e.g. EF, AF41, AF21, default) for voice / interactive / bulk / best-effort.
+- [ ] **Task 1.2 [1 point]** — Create a class-map matching on **protocol** (NBAR `match protocol`) for an application class.
+- [ ] **Task 1.3 [0 points — included above]** — Create a class-map matching an **access-group** (ACL) for a customer subnet / flow.
+- [ ] **Task 1.4 [0 points — concept check]** — Combine with `match-any` vs `match-all` and confirm you understand the logic difference.
 
 **Verify / Snapshot**
 - [ ] `show class-map` — all classes + match criteria
@@ -34,16 +34,16 @@
 
 ---
 
-## Section 2 — Marking + DSCP↔EXP
+## Section 2 — Marking + DSCP↔EXP [3 points]
 
 Mark at PE ingress: **R1** (AS65100) and **R14** (AS65200).
 
-- [ ] **Task 2.1** — Build an ingress policy on R1 and R14 that **sets DSCP** on classified customer traffic as it enters the VPN.
-- [ ] **Task 2.2** — Confirm the PE imposition behavior maps **DSCP → MPLS EXP** on the imposed labels. Decide and configure the tunneling mode:
+- [ ] **Task 2.1 [1 point]** — Build an ingress policy on R1 and R14 that **sets DSCP** on classified customer traffic as it enters the VPN.
+- [ ] **Task 2.2 [2 points]** — Confirm the PE imposition behavior maps **DSCP → MPLS EXP** on the imposed labels. Decide and configure the tunneling mode:
   - [ ] **Uniform** mode (EXP derived from DSCP, changes propagate back on disposition), or
   - [ ] **Pipe / short-pipe** mode (provider EXP independent of customer DSCP).
-- [ ] **Task 2.3** — Apply the ingress marking policy to the PE-CE interfaces (R1→R9/R10/R32, R14→R25) as appropriate.
-- [ ] **Task 2.4** — Confirm EXP is set on labels in the core and that disposition at the egress PE restores/handles DSCP per the chosen mode.
+- [ ] **Task 2.3 [0 points — included above]** — Apply the ingress marking policy to the PE-CE interfaces (R1→R9/R10/R32, R14→R25) as appropriate.
+- [ ] **Task 2.4 [0 points — verification]** — Confirm EXP is set on labels in the core and that disposition at the egress PE restores/handles DSCP per the chosen mode.
 
 **Verify / Snapshot**
 - [ ] `show policy-map interface <PE-CE>` — marking counters incrementing
@@ -53,12 +53,12 @@ Mark at PE ingress: **R1** (AS65100) and **R14** (AS65200).
 
 ---
 
-## Section 3 — Policing
+## Section 3 — Policing [3 points]
 
-- [ ] **Task 3.1** — **Single-rate three-color** policer (CIR with conform / exceed / violate actions — e.g. transmit / set-dscp-transmit / drop).
-- [ ] **Task 3.2** — **Dual-rate** policer (CIR + PIR, two token buckets) with distinct conform/exceed/violate actions.
-- [ ] **Task 3.3** — **Per-VRF policing** at the PE: apply a policer scoped to a customer VRF's ingress so one VPN cannot exceed its contracted rate.
-- [ ] **Task 3.4** — Generate traffic above CIR (and above PIR for dual-rate) and confirm the exceed/violate actions trigger.
+- [ ] **Task 3.1 [1 point]** — **Single-rate three-color** policer (CIR with conform / exceed / violate actions — e.g. transmit / set-dscp-transmit / drop).
+- [ ] **Task 3.2 [1 point]** — **Dual-rate** policer (CIR + PIR, two token buckets) with distinct conform/exceed/violate actions.
+- [ ] **Task 3.3 [1 point]** — **Per-VRF policing** at the PE: apply a policer scoped to a customer VRF's ingress so one VPN cannot exceed its contracted rate.
+- [ ] **Task 3.4 [0 points — verification]** — Generate traffic above CIR (and above PIR for dual-rate) and confirm the exceed/violate actions trigger.
 
 **Verify / Snapshot**
 - [ ] `show policy-map interface <if>` — conform/exceed/violate byte+packet counters
@@ -67,15 +67,15 @@ Mark at PE ingress: **R1** (AS65100) and **R14** (AS65200).
 
 ---
 
-## Section 4 — Queuing (egress) + WRED
+## Section 4 — Queuing (egress) + WRED [5 points]
 
 Apply on a congested core/egress interface.
 
-- [ ] **Task 4.1** — **Priority queue (LLQ)** for EF voice (strict priority + implicit policer).
-- [ ] **Task 4.2** — **bandwidth / CBWFQ** guarantees for AF classes (AF4x, AF2x) — percentage or absolute.
-- [ ] **Task 4.3** — **fair-queue** for the best-effort / class-default.
-- [ ] **Task 4.4** — **WRED per queue** (DSCP-based or EXP-based WRED inside the AF classes) for graceful congestion handling; confirm min/max thresholds + drop profiles.
-- [ ] **Task 4.5** — Attach the policy outbound on the chosen interface and generate congestion to exercise all queues.
+- [ ] **Task 4.1 [1 point]** — **Priority queue (LLQ)** for EF voice (strict priority + implicit policer).
+- [ ] **Task 4.2 [1 point]** — **bandwidth / CBWFQ** guarantees for AF classes (AF4x, AF2x) — percentage or absolute.
+- [ ] **Task 4.3 [1 point]** — **fair-queue** for the best-effort / class-default.
+- [ ] **Task 4.4 [2 points]** — **WRED per queue** (DSCP-based or EXP-based WRED inside the AF classes) for graceful congestion handling; confirm min/max thresholds + drop profiles.
+- [ ] **Task 4.5 [0 points — verification]** — Attach the policy outbound on the chosen interface and generate congestion to exercise all queues.
 
 **Verify / Snapshot**
 - [ ] `show policy-map interface <egress>` — per-class queue depth, drops, WRED stats
@@ -85,11 +85,11 @@ Apply on a congested core/egress interface.
 
 ---
 
-## Section 5 — Shaping
+## Section 5 — Shaping [3 points]
 
-- [ ] **Task 5.1** — Configure **sub-line-rate shaping** at a PE egress (e.g. shape to a customer's purchased SLA rate below physical line rate).
-- [ ] **Task 5.2** — Nest a **CBWFQ/LLQ queuing policy inside the shaper** (hierarchical policy: parent shape, child queue) so the SLA sub-rate is internally scheduled.
-- [ ] **Task 5.3** — Confirm shaping holds the aggregate to the SLA rate and the child policy prioritizes within it.
+- [ ] **Task 5.1 [1 point]** — Configure **sub-line-rate shaping** at a PE egress (e.g. shape to a customer's purchased SLA rate below physical line rate).
+- [ ] **Task 5.2 [2 points]** — Nest a **CBWFQ/LLQ queuing policy inside the shaper** (hierarchical policy: parent shape, child queue) so the SLA sub-rate is internally scheduled.
+- [ ] **Task 5.3 [0 points — verification]** — Confirm shaping holds the aggregate to the SLA rate and the child policy prioritizes within it.
 
 **Verify / Snapshot**
 - [ ] `show policy-map interface <PE-egress>` — shaper target rate, queue stats under shaper
@@ -98,20 +98,49 @@ Apply on a congested core/egress interface.
 
 ---
 
-## Section 6 — End-to-End Verification
+## Section 6 — End-to-End Verification [5 points]
 
 Full path **R1 → R3 → R5 → R11 → R13 → R14**.
 
-- [ ] **Task 6.1** — Mark at ingress R1, confirm EXP across R3/R5 (AS65100 core), across the R5↔R11 inter-AS link, and R11/R13 (AS65200 core).
-- [ ] **Task 6.2** — Confirm per-hop behavior: at each hop verify the class treatment with `show policy-map interface`.
-- [ ] **Task 6.3** — Confirm disposition at egress R14 handles DSCP per the uniform/pipe decision from Section 2.
-- [ ] **Task 6.4** — Run representative traffic (voice-marked + bulk + BE simultaneously) and confirm EF is protected end-to-end under congestion.
+- [ ] **Task 6.1 [2 points]** — Mark at ingress R1, confirm EXP across R3/R5 (AS65100 core), across the R5↔R11 inter-AS link, and R11/R13 (AS65200 core).
+- [ ] **Task 6.2 [2 points]** — Confirm per-hop behavior: at each hop verify the class treatment with `show policy-map interface`.
+- [ ] **Task 6.3 [1 point]** — Confirm disposition at egress R14 handles DSCP per the uniform/pipe decision from Section 2.
+- [ ] **Task 6.4 [0 points — verification]** — Run representative traffic (voice-marked + bulk + BE simultaneously) and confirm EF is protected end-to-end under congestion.
 
 **Verify / Snapshot**
 - [ ] `show policy-map interface` on R1, R3, R5, R11, R13, R14 — consistent per-hop behavior
 - [ ] EXP preserved across inter-AS boundary (R5↔R11)
 - [ ] End-to-end latency/drop favoring EF under load
 - [ ] **Snapshot:** `WB10-06-end-to-end`
+
+---
+
+## Scoring Summary
+
+| Section | Max Points | Difficulty Breakdown |
+|---------|-----------|---------------------|
+| Section 1: Classification | 2 | Standard: class-maps by DSCP/protocol/ACL |
+| Section 2: Marking + DSCP↔EXP | 3 | Intermediate: marking + tunneling mode |
+| Section 3: Policing | 3 | Intermediate: SR/DR policers, per-VRF |
+| Section 4: Queuing + WRED | 5 | CCIE-level: LLQ/CBWFQ/fair-queue + WRED |
+| Section 5: Shaping | 3 | Intermediate: hierarchical shape + child queue |
+| Section 6: End-to-End Verification | 5 | CCIE-level: per-hop behavior across cores |
+| **Total** | **21** | |
+
+**Scoring rules:**
+- Configured from memory, no help: **full points**
+- Configured after using `?` on router: **2/3 of task points (round up)**
+- Configured after checking solution: **1/3 of task points (round up)**
+- Skipped: **0 points**
+- Verification tasks: **0 points** (but you must do them to catch errors)
+
+**Rating:**
+```
+18-21 points:  CCIE ready for this topic
+14-17 points:  Strong, minor gaps to review
+9-13 points:   Needs more practice
+Below 9:       Review the topic theory before retrying
+```
 
 ---
 

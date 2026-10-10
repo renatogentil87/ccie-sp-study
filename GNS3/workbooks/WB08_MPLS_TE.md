@@ -20,15 +20,15 @@
 
 ---
 
-## Section 1 — Enable MPLS-TE + RSVP + IS-IS TE Extensions
+## Section 1 — Enable MPLS-TE + RSVP + IS-IS TE Extensions [2 points]
 
 Core: R1, R2, R3, R4, R5, R6, R7, R8.
 
-- [ ] **Task 1.1** — Enable the global MPLS-TE capability on every core router (R1-R8).
-- [ ] **Task 1.2** — Enable TE on every core-facing interface (R1-R8), per the Full Link Map (AS 65100 Core). Do **not** enable TE on PE-CE or inter-AS interfaces.
-- [ ] **Task 1.3** — Enable RSVP on each core interface and reserve an RSVP bandwidth pool on each. Choose a per-interface reservable value appropriate to the link (document your choice).
-- [ ] **Task 1.4** — Add IS-IS TE extensions: advertise TE topology at **level-2** and set the MPLS-TE router-id to Loopback0 on each router.
-- [ ] **Task 1.5** — Confirm the TE topology database is populated.
+- [ ] **Task 1.1 [1 point]** — Enable the global MPLS-TE capability on every core router (R1-R8).
+- [ ] **Task 1.2 [1 point]** — Enable TE on every core-facing interface (R1-R8), per the Full Link Map (AS 65100 Core). Do **not** enable TE on PE-CE or inter-AS interfaces.
+- [ ] **Task 1.3 [0 points — included above]** — Enable RSVP on each core interface and reserve an RSVP bandwidth pool on each. Choose a per-interface reservable value appropriate to the link (document your choice).
+- [ ] **Task 1.4 [0 points — included above]** — Add IS-IS TE extensions: advertise TE topology at **level-2** and set the MPLS-TE router-id to Loopback0 on each router.
+- [ ] **Task 1.5 [0 points — verification]** — Confirm the TE topology database is populated.
 
 **Verify / Snapshot**
 - [ ] `show mpls traffic-eng link-management interfaces` — TE enabled, BW pools shown
@@ -39,15 +39,15 @@ Core: R1, R2, R3, R4, R5, R6, R7, R8.
 
 ---
 
-## Section 2 — Basic TE Tunnel with Explicit Path (non-shortest)
+## Section 2 — Basic TE Tunnel with Explicit Path (non-shortest) [3 points]
 
 Headend **R1**, tailend **R5**. Shortest IGP path is R1→R3→R5. You will force a **non-shortest** explicit path.
 
-- [ ] **Task 2.1** — Build an explicit path object listing the hops R1 → R3 → R5. (Confirm from topology this is actually valid; if R1→R3→R5 *is* the shortest, instead select a deliberately longer path such as R1→R3→R4→R6→R5 and note it — the point is to prove explicit routing overrides CSPF's shortest choice.)
-- [ ] **Task 2.2** — Create `Tunnel0` on R1: destination = R5 Loopback0 (150.1.5.5), path-option 1 = explicit (your path), path-option 2 = dynamic (fallback).
-- [ ] **Task 2.3** — Bring the tunnel UP and confirm it signalled over the explicit path, not the IGP shortest path.
-- [ ] **Task 2.4** — Enable **autoroute announce** on Tunnel0 so R1's routing table uses the tunnel to reach R5 and prefixes behind R5.
-- [ ] **Task 2.5** — Confirm a destination behind R5 now resolves via Tunnel0 in the RIB/CEF.
+- [ ] **Task 2.1 [1 point]** — Build an explicit path object listing the hops R1 → R3 → R5. (Confirm from topology this is actually valid; if R1→R3→R5 *is* the shortest, instead select a deliberately longer path such as R1→R3→R4→R6→R5 and note it — the point is to prove explicit routing overrides CSPF's shortest choice.)
+- [ ] **Task 2.2 [1 point]** — Create `Tunnel0` on R1: destination = R5 Loopback0 (150.1.5.5), path-option 1 = explicit (your path), path-option 2 = dynamic (fallback).
+- [ ] **Task 2.3 [0 points — verification]** — Bring the tunnel UP and confirm it signalled over the explicit path, not the IGP shortest path.
+- [ ] **Task 2.4 [1 point]** — Enable **autoroute announce** on Tunnel0 so R1's routing table uses the tunnel to reach R5 and prefixes behind R5.
+- [ ] **Task 2.5 [0 points — verification]** — Confirm a destination behind R5 now resolves via Tunnel0 in the RIB/CEF.
 
 **Verify / Snapshot**
 - [ ] `show mpls traffic-eng tunnels tunnel0` — state UP/UP, path = explicit hops
@@ -58,17 +58,17 @@ Headend **R1**, tailend **R5**. Shortest IGP path is R1→R3→R5. You will forc
 
 ---
 
-## Section 3 — Fast ReRoute (FRR)
+## Section 3 — Fast ReRoute (FRR) [5 points]
 
 Protect Tunnel0 along its path. Target: traffic restoration **< 50 ms** on failure.
 
-- [ ] **Task 3.1** — Enable FRR (link protection) on Tunnel0 at the headend (`tunnel mpls traffic-eng fast-reroute`).
-- [ ] **Task 3.2** — On the PLR (point of local repair, e.g. R3) build a **facility backup / bypass tunnel** that protects the next link toward R5 (NHOP — next-hop link protection). The bypass must route around the protected link.
-- [ ] **Task 3.3** — Confirm the primary tunnel is "protected" and the bypass is "ready".
-- [ ] **Task 3.4** — **Link failure test:** shut the protected core link on the PLR. Confirm FRR cuts over to the bypass and the tunnel stays UP.
-- [ ] **Task 3.5** — Node protection: build an **NNHOP (next-next-hop)** bypass on the PLR that protects against failure of the downstream node (not just the link).
-- [ ] **Task 3.6** — **Node failure test:** reload/shut the protected midpoint node. Confirm NNHOP bypass engages.
-- [ ] **Task 3.7** — Measure/estimate restoration time (continuous ping with tight interval; count lost packets). Confirm sub-50ms behavior (acknowledge Dynamips timing is imprecise — reason about the mechanism, not just the ping count).
+- [ ] **Task 3.1 [1 point]** — Enable FRR (link protection) on Tunnel0 at the headend (`tunnel mpls traffic-eng fast-reroute`).
+- [ ] **Task 3.2 [1 point]** — On the PLR (point of local repair, e.g. R3) build a **facility backup / bypass tunnel** that protects the next link toward R5 (NHOP — next-hop link protection). The bypass must route around the protected link.
+- [ ] **Task 3.3 [0 points — verification]** — Confirm the primary tunnel is "protected" and the bypass is "ready".
+- [ ] **Task 3.4 [1 point]** — **Link failure test:** shut the protected core link on the PLR. Confirm FRR cuts over to the bypass and the tunnel stays UP.
+- [ ] **Task 3.5 [2 points]** — Node protection: build an **NNHOP (next-next-hop)** bypass on the PLR that protects against failure of the downstream node (not just the link).
+- [ ] **Task 3.6 [0 points — verification]** — **Node failure test:** reload/shut the protected midpoint node. Confirm NNHOP bypass engages.
+- [ ] **Task 3.7 [0 points — verification]** — Measure/estimate restoration time (continuous ping with tight interval; count lost packets). Confirm sub-50ms behavior (acknowledge Dynamips timing is imprecise — reason about the mechanism, not just the ping count).
 
 **Verify / Snapshot**
 - [ ] `show mpls traffic-eng fast-reroute database` — protected prefixes/tunnels
@@ -79,13 +79,13 @@ Protect Tunnel0 along its path. Target: traffic restoration **< 50 ms** on failu
 
 ---
 
-## Section 4 — Bandwidth Management
+## Section 4 — Bandwidth Management [3 points]
 
-- [ ] **Task 4.1** — Configure a bandwidth requirement on Tunnel0 and confirm CSPF only admits it on links with sufficient reservable BW.
-- [ ] **Task 4.2** — Set **setup** and **holding** priority on Tunnel0 (values 0-7; lower = better). Create a second lower-priority tunnel competing for the same constrained link.
-- [ ] **Task 4.3** — **Preemption test:** request bandwidth on the higher-priority tunnel that forces the lower-priority tunnel to be torn down / rerouted. Confirm preemption occurred.
-- [ ] **Task 4.4** — Enable **auto-bandwidth** on Tunnel0: periodic adjustment of reserved BW based on measured traffic (set collection interval + min/max).
-- [ ] **Task 4.5** — Confirm the applied/current reserved bandwidth and the auto-bw adjustment timers.
+- [ ] **Task 4.1 [1 point]** — Configure a bandwidth requirement on Tunnel0 and confirm CSPF only admits it on links with sufficient reservable BW.
+- [ ] **Task 4.2 [1 point]** — Set **setup** and **holding** priority on Tunnel0 (values 0-7; lower = better). Create a second lower-priority tunnel competing for the same constrained link.
+- [ ] **Task 4.3 [1 point]** — **Preemption test:** request bandwidth on the higher-priority tunnel that forces the lower-priority tunnel to be torn down / rerouted. Confirm preemption occurred.
+- [ ] **Task 4.4 [0 points — included above]** — Enable **auto-bandwidth** on Tunnel0: periodic adjustment of reserved BW based on measured traffic (set collection interval + min/max).
+- [ ] **Task 4.5 [0 points — verification]** — Confirm the applied/current reserved bandwidth and the auto-bw adjustment timers.
 
 **Verify / Snapshot**
 - [ ] `show mpls traffic-eng tunnels tunnel0 | include bandwidth|priority`
@@ -96,12 +96,15 @@ Protect Tunnel0 along its path. Target: traffic restoration **< 50 ms** on failu
 
 ---
 
-## Section 5 — Advanced TE
+## Section 5 — Advanced TE [5 points]
 
-- [ ] **Task 5.1 — Make-before-break (SE):** change Tunnel0's path/bandwidth and confirm the new LSP is signalled with **Shared-Explicit** reservation style *before* the old LSP is torn down (no traffic drop). Confirm reoptimization behavior.
-- [ ] **Task 5.2 — Affinity / admin-groups:** assign admin-group color bits (link attribute flags) to selected core links. On Tunnel0 set an affinity/mask so CSPF **includes** some colors and **excludes** others. Prove the tunnel avoids an excluded-color link.
-- [ ] **Task 5.3 — CSPF:** force Tunnel0 to path-option = dynamic and confirm CSPF computes the constrained shortest path honoring BW + affinity constraints. Compare against plain IGP SPF.
-- [ ] **Task 5.4 — DS-TE:** enable Differentiated-Services TE. Configure a sub-pool (class-type 1) for priority traffic. Test both bandwidth-constraint models:
+- [ ] **Task 5.1 — Make-before-break (SE) [1 point]:** change Tunnel0's path/bandwidth and confirm the new LSP is signalled with **Shared-Explicit** reservation style *before* the old LSP is torn down (no traffic drop). Confirm reoptimization behavior.
+- [ ] **Task 5.2 — Affinity / admin-groups [2 points]:** assign admin-group color bits (link attribute flags) to selected core links. On Tunnel0 set an affinity/mask so CSPF **includes** some colors and **excludes** others. Prove the tunnel avoids an excluded-color link.
+- [ ] **Task 5.3 — CSPF [0 points — included above]:** force Tunnel0 to path-option = dynamic and confirm CSPF computes the constrained shortest path honoring BW + affinity constraints. Compare against plain IGP SPF.
+- [ ] **Task 5.4 — DS-TE [2 points]:** enable Differentiated-Services TE. Configure a sub-pool (class-type 1) for priority traffic. Test both bandwidth-constraint models:
+  - [ ] **MAM** (Maximum Allocation Model)
+  - [ ] **RDM** (Russian Dolls Model)
+  Reserve sub-pool BW on a tunnel and confirm admission against the correct class-type.
   - [ ] **MAM** (Maximum Allocation Model)
   - [ ] **RDM** (Russian Dolls Model)
   Reserve sub-pool BW on a tunnel and confirm admission against the correct class-type.
@@ -115,11 +118,11 @@ Protect Tunnel0 along its path. Target: traffic restoration **< 50 ms** on failu
 
 ---
 
-## Section 6 — TE + VPN Integration
+## Section 6 — TE + VPN Integration [5 points]
 
-- [ ] **Task 6.1** — Confirm L3VPN traffic (an existing customer VPN from WB prerequisites that transits R1→R5) rides Tunnel0 via autoroute announce. Verify the VPN label stacks on top of the TE/tunnel label.
-- [ ] **Task 6.2** — Configure **forwarding-adjacency** on Tunnel0 so the tunnel is advertised into IS-IS as a link, allowing other routers (not just the headend) to use it in SPF. Set the forwarding-adjacency holdtime/metric.
-- [ ] **Task 6.3** — Confirm a *non-headend* router now installs routes over the tunnel because it appears as an IS-IS link.
+- [ ] **Task 6.1 [2 points]** — Confirm L3VPN traffic (an existing customer VPN from WB prerequisites that transits R1→R5) rides Tunnel0 via autoroute announce. Verify the VPN label stacks on top of the TE/tunnel label.
+- [ ] **Task 6.2 [3 points]** — Configure **forwarding-adjacency** on Tunnel0 so the tunnel is advertised into IS-IS as a link, allowing other routers (not just the headend) to use it in SPF. Set the forwarding-adjacency holdtime/metric.
+- [ ] **Task 6.3 [0 points — verification]** — Confirm a *non-headend* router now installs routes over the tunnel because it appears as an IS-IS link.
 
 **Verify / Snapshot**
 - [ ] `show mpls forwarding-table vrf <VPN>` — label stack over tunnel
@@ -129,18 +132,48 @@ Protect Tunnel0 along its path. Target: traffic restoration **< 50 ms** on failu
 
 ---
 
-## Section 7 — Troubleshooting Drills
+## Section 7 — Troubleshooting Drills [5 points]
 
 Break it, diagnose from show output, then fix.
 
-- [ ] **Drill 7.1 — Tunnel DOWN (CSPF failed):** request bandwidth on Tunnel0 larger than any link's reservable BW. Observe the tunnel go/stay DOWN. Diagnose via CSPF/path error, then correct.
+- [ ] **Drill 7.1 — Tunnel DOWN (CSPF failed) [2 points]:** request bandwidth on Tunnel0 larger than any link's reservable BW. Observe the tunnel go/stay DOWN. Diagnose via CSPF/path error, then correct.
   - [ ] `show mpls traffic-eng tunnels tunnel0` → "no path"/"CSPF failed"
   - [ ] `show mpls traffic-eng link-management bandwidth-allocation`
-- [ ] **Drill 7.2 — Tunnel DOWN (no BW on a hop):** reduce reservable BW on one explicit-path link below the tunnel's requirement. Confirm failure localizes to that hop.
-- [ ] **Drill 7.3 — Tunnel UP but no traffic:** remove `autoroute announce`. Confirm tunnel is UP/UP yet the RIB does not use it, so traffic takes the IGP path instead. Diagnose (route points to physical, not Tunnel0), then restore autoroute.
+- [ ] **Drill 7.2 — Tunnel DOWN (no BW on a hop) [2 points]:** reduce reservable BW on one explicit-path link below the tunnel's requirement. Confirm failure localizes to that hop.
+- [ ] **Drill 7.3 — Tunnel UP but no traffic [1 point]:** remove `autoroute announce`. Confirm tunnel is UP/UP yet the RIB does not use it, so traffic takes the IGP path instead. Diagnose (route points to physical, not Tunnel0), then restore autoroute.
   - [ ] `show ip route <dest>` → next-hop is physical, not Tunnel0
   - [ ] `show mpls traffic-eng autoroute`
 - [ ] **Snapshot:** `WB08-07-tshoot`
+
+---
+
+## Scoring Summary
+
+| Section | Max Points | Difficulty Breakdown |
+|---------|-----------|---------------------|
+| Section 1: Enable MPLS-TE + RSVP + IS-IS TE | 2 | Standard: enable TE/RSVP, TE extensions |
+| Section 2: Basic TE Tunnel (explicit path) | 3 | Intermediate: explicit path + autoroute |
+| Section 3: Fast ReRoute (FRR) | 5 | CCIE-level: NHOP/NNHOP bypass + failure tests |
+| Section 4: Bandwidth Management | 3 | Intermediate: BW, priority, preemption, auto-bw |
+| Section 5: Advanced TE | 5 | CCIE-level: MBB/SE, affinity, DS-TE (MAM+RDM) |
+| Section 6: TE + VPN Integration | 5 | CCIE-level: label stacking, forwarding-adjacency |
+| Section 7: Troubleshooting Drills | 5 | CCIE-level: break-and-fix scenarios |
+| **Total** | **28** | |
+
+**Scoring rules:**
+- Configured from memory, no help: **full points**
+- Configured after using `?` on router: **2/3 of task points (round up)**
+- Configured after checking solution: **1/3 of task points (round up)**
+- Skipped: **0 points**
+- Verification tasks: **0 points** (but you must do them to catch errors)
+
+**Rating:**
+```
+24-28 points:  CCIE ready for this topic
+18-23 points:  Strong, minor gaps to review
+12-17 points:  Needs more practice
+Below 12:      Review the topic theory before retrying
+```
 
 ---
 
