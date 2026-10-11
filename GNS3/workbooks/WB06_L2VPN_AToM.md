@@ -98,3 +98,34 @@ Introduce one fault at a time, diagnose from symptoms, repair, and restore befor
 - **Used `?` on router:** 2/3 points (round up)
 - **Checked solution:** 1/3 points (round up)
 - **Skipped:** 0 points
+
+---
+
+## Attempt History
+
+### Attempt 1 — October 11, 2026
+
+| Task | Max | Score | Notes |
+|------|-----|-------|-------|
+| **Section 1: AToM/VPWS Pseudowire** | **9** | **6** | |
+| 1.1 Attachment circuits | 3 | 3 | ✅ R14 f4/0 (R28), R16 f3/0 (R27), Ethernet port mode |
+| 1.2 Pseudowire (xconnect) | 3 | 3 | ✅ xconnect with pw-class, VC-ID 100 matching, peer to loopback0 |
+| 1.3 Control word | — | — | ⛔ Excluded — not supported on Dynamips/IOS 15.2 7200 |
+| 1.4 VC-ID & encap consistency | 3 | 3 | ✅ VC-ID 100 match, same pw-class, Ethernet VC type |
+| **Section 2: Verification** | **0** | **—** | |
+| 2.1 VC state | 0 | — | ✅ VC UP, imposed label stack {17 23}, targeted LDP |
+| 2.2 Xconnect view | 0 | — | ✅ AC UP + PW UP |
+| 2.3 Targeted LDP | 0 | — | ✅ Targeted hello confirmed |
+| 2.4 L2 data-plane proof | 0 | — | ✅ R27↔R28 ping across PW, counters incrementing |
+| **Section 3: PW Redundancy** | **15** | **—** | |
+| 3.1-3.3 Backup PW | — | — | ⛔ Excluded — topology limitation (no second PE connected to R27) |
+| **Section 4: Troubleshooting** | **20** | **20** | ✅ PERFECT |
+| 4.1 VC-ID mismatch | 5 | 5 | ✅ Reproduced, diagnosed, fixed |
+| 4.2 MTU mismatch | 5 | 5 | ✅ Reproduced, diagnosed, fixed |
+| 4.3 AC down | 5 | 5 | ✅ Reproduced, diagnosed, fixed |
+| 4.4 Broken transport LSP | 5 | 5 | ✅ Reproduced, diagnosed, fixed |
+| **TOTAL (adjusted)** | **29** | **29** | **100% 🔥 — Perfect (on testable tasks)** |
+
+**Excluded tasks:** Control word (platform), PW redundancy (topology) — not counted in total
+**All from memory:** xconnect config, pseudowire-class, all troubleshooting scenarios
+**Added:** xconnect logging pseudowire status on R14

@@ -123,3 +123,41 @@ Goal: Validate CE-CE reachability within each AS and apply Site-of-Origin to the
 - **Used `?` on router:** 2/3 points (round up)
 - **Checked solution:** 1/3 points (round up)
 - **Skipped:** 0 points
+
+---
+
+## Attempt History
+
+### Attempt 1 — October 10-11, 2026
+
+| Task | Max | Score | Notes |
+|------|-----|-------|-------|
+| **Section 1: VRF + RD + RT** | **10** | **10** | ✅ PERFECT |
+| 1.1 RD/RT scheme | 2 | 2 | ✅ Per-AS RDs, consistent RTs across ASes |
+| 1.2 VRF GREEN (AS65100) | 2 | 2 | ✅ R1, R2 — correct interfaces |
+| 1.3 VRF GREEN (AS65200) | 2 | 2 | ✅ R15, R16 — RD initially wrong (65100:100 on R16), fixed |
+| 1.4 VRF YELLOW | 2 | 2 | ✅ R20, R22, R16 |
+| 1.5 VRF BLUE | 2 | 2 | ✅ R1, R14, R21, R23 — spans 3 ASes |
+| **Section 2: PE-CE eBGP** | **15** | **15** | ✅ PERFECT |
+| 2.1 Green eBGP (AS65100) | 3 | 3 | ✅ R1↔R9, R1↔R10, R2↔R10 all AS65910 |
+| 2.2 Green eBGP (AS65200) | 3 | 3 | ✅ R16↔R18 |
+| 2.3 as-override | 3 | 3 | ✅ On R1, R2, R16 for same-AS Green CEs |
+| 2.4 Yellow eBGP | 3 | 3 | ✅ R20↔R24, R22↔R24, R16↔R26 |
+| 2.5 Blue eBGP | 3 | 3 | ✅ R1↔R32, R14↔R25, R21↔R25, R23↔R25 |
+| **Section 3: PE-CE OSPF** | **18** | **18** | ✅ PERFECT |
+| 3.1 OSPF PE-CE | 5 | 5 | ✅ OSPF 2 VRF GREEN, R15↔R17, adjacency FULL |
+| 3.2 Mutual redistribution | 3 | 3 | ✅ ospf→bgp and bgp→ospf both configured |
+| 3.3 DN-bit | 5 | 5 | ✅ Understands concept, deferred verification to Inter-AS |
+| 3.4 Domain-ID + domain-tag | 5 | 5 | ✅ domain-id 150.2.15.15, domain-tag 65200 |
+| **Section 4: VPNv4 on RRs** | **9** | **6** | |
+| 4.2 RT import/export | 3 | 3 | ✅ Correct RTs verified |
+| 4.3 Next-hop resolution | 3 | 3 | ✅ VPN + LDP labels working |
+| 4.4 RTC | 3 | — | ⏸️ Deferred to WB09 (configured but removed — filters routes without Inter-AS endpoints) |
+| **Section 5: SoO** | **5** | **5** | ✅ PERFECT |
+| 5.4 SoO | 5 | 5 | ✅ R10 (R1+R2), R24 (R20+R22), R25 (R21+R23) — all from memory |
+| **TOTAL** | **57** | **54** | **95% — Excellent** (3 pts deferred RTC) |
+
+**Perfect sections:** VRF+RD+RT (10/10), PE-CE eBGP (15/15), PE-CE OSPF (18/18), SoO (5/5)
+**Deferred:** RT-Constraint (4.4) — will score after WB09 Inter-AS provides remote VRF endpoints
+**Minor fixes during lab:** R16 GREEN RD was 65100:100 (wrong AS), R14 BLUE missing PE-CE neighbor, R15 missing redistribute bgp under OSPF
+**Key learning:** Always verify RD per-router, always check PE-CE neighbor exists under VRF AF after creating VRF
