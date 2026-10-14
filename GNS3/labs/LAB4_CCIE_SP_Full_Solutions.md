@@ -1,1215 +1,1501 @@
-# LAB 4 — Full CCIE SP Practice Lab — SOLUTIONS
+# LAB 4 — CCIE SP v5.1 Full Workbook: SOLUTIONS
 
-**Platform:** EVE-NG, IOS-XRv 9000 (7.x+)
-**Companion to:** `LAB4_CCIE_SP_Full.md`
-**Note:** Configs below use the exact topology/addressing from Section 0 of the task file. Interface names are shown generically as `Gi0/0/0/X` — substitute your actual EVE-NG interface mapping. Loopback0 is the router-id/BGP/IS-IS source for every router unless stated otherwise.
+**Platform:** EVE-NG, Cisco IOS-XRv 9000 (7.x+); CEs on IOS-XE (CSR1000v / IOSv).
+**Companion files:** `LAB4_CCIE_SP_Full.md` (tasks), `GNS3/workbooks/00_topology_reference.md` (base addressing reused verbatim).
+
+> Addressing is pulled directly from `00_topology_reference.md` (core/PE-CE/inter-AS subnets, loopbacks, IS-IS NET-IDs, IPv6) plus the LAB4-specific SR plan from Section 0 of the task file:
+> - **SRGB 16000–23999**, **SRLB 15000–15999** on all SR nodes.
+> - **Prefix-SID index = last octet of Loopback0 × 10** (R14→140→16140, R20→200→16200, R22→220→16220).
+> - **Anycast** R14/R15 index **1140**, label **17140**, anycast Lo `150.2.114.114/32`.
+> - **SRv6 locator** `fc00:1:<R#>::/48` (Emerald), F3216 uSID.
+> - **Flex-Algo 129** min-delay, `include-all BLUE`.
+> - **Colors:** 300/301 explicit-SID TE, 400 ODN min-delay.
+> - **EVI 2001** (R1↔R16 Red), **EVI 2002** (R14↔R15, AC-IDs 2142/2152).
+> - **mVPN Profile 3** (BGP C-multicast, mLDP P2MP).
+
+---
+
+## 0. Topology Reference Recap
+
+| AS | Name | IGP (LAB4) | Transport | Routers |
+|----|------|------------|-----------|---------|
+| 65100 | Emerald | IS-IS **multi-level** | **SRv6** | R1(PE) R2(PE) R3(P) R4(P) R5(ASBR) R6(ASBR) R7(RR) R8(RR+PCE) |
+| 65200 | Garnet | OSPF Area 0 + **RSVP-TE** | SR-MPLS | R11(P) R12(ASBR) R13(P) R14(PE) R15(PE) R16(PE) R19(RR+PCE) |
+| 65300 | Gold | IS-IS **multi-level** | **SR-MPLS** | R20(ASBR/PE) R21(ASBR/PE) R22(PE) R23(PE) R30(RR+PCE) |
+
+**Level roles (Emerald/Gold IS-IS):** PEs/ASBRs = L1-only; P routers = L1/L2; RRs = L2-only.
+
+Key links (from topology reference):
+
+| Link | Subnet | Role |
+|---|---|---|
+| R5↔R11 | 10.5.11.0/24 | Inter-AS 65100↔65200 |
+| R6↔R12 | 10.6.12.0/24 | Inter-AS 65100↔65200 |
+| R6↔R20 | 10.6.20.0/24 | Inter-AS 65100↔65300 |
+| R12↔R21 | 20.12.21.0/24 | Inter-AS 65200↔65300 |
+| R14↔R25 | 192.168.5.0/24 | Blue PE-CE eBGP 65025 |
+| R21↔R25 | 192.168.10.0/24 | Blue PE-CE eBGP 65025 |
+| R23↔R25 | 192.168.12.0/24 | Blue PE-CE eBGP 65025 |
+| R15↔R17 | 192.168.6.0/24 | Green PE-CE OSPF |
+| R16↔R18 | 192.168.7.0/24 | Green PE-CE eBGP 65910 |
+
+Prefix-SID label map (SRGB 16000, index ×10):
+
+| Node | Lo0 | Index | Label | Node | Lo0 | Index | Label |
+|---|---|---|---|---|---|---|---|
+| R11 | 150.2.11.11 | 110 | 16110 | R20 | 150.3.20.20 | 200 | 16200 |
+| R12 | 150.2.12.12 | 120 | 16120 | R21 | 150.3.21.21 | 210 | 16210 |
+| R13 | 150.2.13.13 | 130 | 16130 | R22 | 150.3.22.22 | 220 | 16220 |
+| R14 | 150.2.14.14 | 140 | 16140 | R23 | 150.3.23.23 | 230 | 16230 |
+| R15 | 150.2.15.15 | 150 | 16150 | R30 | 150.3.30.30 | 300 | 16300 |
+| R16 | 150.2.16.16 | 160 | 16160 | R14/R15 anycast | 150.2.114.114 | 1140 | 17140 |
+| R19 | 150.2.19.19 | 190 | 16190 | | | | |
 
 ---
 
-## 0. Topology and Addressing (as given)
+## Section 1 — Core Network Infrastructure (25%)
+
+### Task 1.1 — IS-IS multi-level design (Emerald AS 65100)
+
+**Design:** single instance `EMERALD`, area 49.0001, dual-stack single-topology, wide metrics at both levels. Level by role: R1/R2/R5/R6 = L1-only; R3/R4 = L1/L2; R7/R8 = L2-only. Overload-bit on RRs. L2→L1 route-leaking of remote-PE loopbacks so SR prefix-SIDs resolve in the L1 edge. Keychain `ISIS-KEY-L4` referenced (built in Task 5.1).
+
+#### R1 (PE, L1-only) — IOS-XR
 
 ```
-                        RR1 (L2)                    RR2 (L2)
-                      10.0.0.11/32                10.0.0.12/32
-                           \                          /
-                            \________________________/
-                            /          |             \
-                     P1(L1/L2)   P2(L1/L2)      P3(L1/L2)
-                   10.0.0.21/32  10.0.0.22/32   10.0.0.23/32
-                      /    \         |              /    \
-                    PE1    PE2      PE3           PE4   (ASBR-A/ASBR-B for Inter-AS)
-                 10.0.0.1  10.0.0.2 10.0.0.3     10.0.0.4
-                  (L1)      (L1)     (L1)         (L1)
-                   |          |        |            |
-                  CE1        CE2      CE3          CE4
-```
-
-Point-to-point link addressing used throughout this solution (if your EVE-NG build already has link IPs assigned, keep yours — only the loopbacks/SIDs/EVIs below are normative to the task):
-
-| Link | Subnet |
-|---|---|
-| PE1–P1 | 10.1.12.0/30 (PE1=.1, P1=.2) |
-| PE2–P1 | 10.1.13.0/30 (PE2=.1, P1=.2) |
-| PE3–P2 | 10.1.14.0/30 (PE3=.1, P2=.2) |
-| PE4–P3 | 10.1.15.0/30 (PE4=.1, P3=.2) |
-| P1–P2 | 10.2.12.0/30 |
-| P2–P3 | 10.2.23.0/30 |
-| P1–RR1 | 10.2.14.0/30 |
-| P2–RR1 | 10.2.24.0/30 |
-| P2–RR2 | 10.2.25.0/30 |
-| P3–RR2 | 10.2.35.0/30 |
-| P3–ASBR-A | 10.2.36.0/30 |
-| ASBR-A–ASBR-B | 10.9.0.0/30 (ASBR-A=.1, ASBR-B=.2) |
-| PE-CE links | 192.168.x.0/30 per CE, x = CE number |
-
----
-## Section 1 — IGP, Segment Routing, SRv6, and Traffic Engineering
-
-### Task 1.1 — IS-IS Multi-Level Design — SOLUTION
-
-**Design:** PEs = L1-only (stub into Area 49.0001). P1/P2/P3 = L1/L2 border. RR1/RR2/ASBR-A = L2-only backbone.
-
-**PE1 (L1-only), representative for PE1-PE4 (substitute NET/loopback per router):**
-```
-interface Loopback0
- ipv4 address 10.0.0.1 255.255.255.255
+key chain ISIS-KEY-L4
+ key 1
+  accept-lifetime 00:00:00 january 01 2024 infinite
+  send-lifetime   00:00:00 january 01 2024 infinite
+  cryptographic-algorithm HMAC-MD5
+  key-string <built-in-Task-5.1>
 !
-router isis CORE
+router isis EMERALD
  is-type level-1
- net 49.0001.0100.0000.0001.00
+ net 49.0001.1500.0100.1001.00
+ lsp-password keychain ISIS-KEY-L4 level 1
  address-family ipv4 unicast
   metric-style wide
-  reference-bandwidth 10000000
+ !
+ address-family ipv6 unicast
+  metric-style wide
  !
  interface Loopback0
   passive
   address-family ipv4 unicast
+   prefix-sid index 10
+  !
+  address-family ipv6 unicast
+  !
  !
- interface Gi0/0/0/0
+ interface GigabitEthernet0/0/0/0
   circuit-type level-1
+  point-to-point
+  hello-password keychain ISIS-KEY-L4
   address-family ipv4 unicast
-   metric 100
+   metric 10
+  address-family ipv6 unicast
+   metric 10
+ !
 ```
-> PE-uplink is 1 Gbps → cost 100 under `reference-bandwidth 10000000` (10,000,000 kbps = 10 Gbps baseline, so cost = refbw/bw = 10,000,000/1,000,000 = 10... to hit the required 10/100 ratio exactly, set `reference-bandwidth 1000000` (1 Gbps baseline) so a 1G link = cost 100 (scaled x100 for granularity) and a 10G link = cost 10. In practice on IOS-XR, explicitly set `metric` per-interface rather than relying purely on auto-cost — this guarantees the 10/100 ratio the task requires regardless of auto-bandwidth derivation:
-> - 10 Gbps core interfaces: `metric 10` (both L1 and L2 AF context)
-> - 1 Gbps PE-uplink interfaces: `metric 100`
 
-**P1 (L1/L2 border), representative for P1-P3:**
+> R2, R5, R6 identical pattern: `is-type level-1`, NET per topology ref, `circuit-type level-1` on core interfaces, prefix-SID index = last octet ×10 (R2→20, R5→50, R6→60).
+
+#### R3 (P, L1/L2 — the attachment tier) — IOS-XR
+
 ```
-interface Loopback0
- ipv4 address 10.0.0.21 255.255.255.255
-!
-router isis CORE
+router isis EMERALD
  is-type level-1-2
- net 49.0001.0100.0000.0021.00
+ net 49.0001.1500.0100.3003.00
+ lsp-password keychain ISIS-KEY-L4 level 1
+ lsp-password keychain ISIS-KEY-L4 level 2
  address-family ipv4 unicast
-  metric-style wide
-  reference-bandwidth 10000000
+  metric-style wide level 1
+  metric-style wide level 2
+  ! --- L2 -> L1 leak of remote-PE loopbacks so SR labels resolve in L1 edge ---
+  propagate level 2 into level 1 route-policy LEAK-L2-L1
+ !
+ address-family ipv6 unicast
+  metric-style wide level 1
+  metric-style wide level 2
  !
  interface Loopback0
   passive
   address-family ipv4 unicast
+   prefix-sid index 30
  !
- interface Gi0/0/0/0        ! toward PE1 (L1 side)
-  circuit-type level-1
-  address-family ipv4 unicast
-   metric 100
- !
- interface Gi0/0/0/1        ! toward PE2 (L1 side)
-  circuit-type level-1
-  address-family ipv4 unicast
-   metric 100
- !
- interface Gi0/0/0/2        ! toward P2 (L2 core, 10G)
-  circuit-type level-2-only
+ interface GigabitEthernet0/0/0/0
+  circuit-type level-1-2
+  point-to-point
+  hello-password keychain ISIS-KEY-L4
   address-family ipv4 unicast
    metric 10
  !
- interface Gi0/0/0/3        ! toward RR1 (L2 core, 10G)
-  circuit-type level-2-only
-  address-family ipv4 unicast
-   metric 10
-```
-
-**RR1 (L2-only), representative for RR1, RR2, ASBR-A:**
-```
-interface Loopback0
- ipv4 address 10.0.0.11 255.255.255.255
 !
-router isis CORE
+route-policy LEAK-L2-L1
+  if destination in (150.1.0.0/16 ge 32) then
+    pass
+  endif
+end-policy
+```
+
+> R4 identical (NET `...4004`, prefix-SID index 40).
+
+#### R7 (RR, L2-only, overload on startup) — IOS-XR
+
+```
+router isis EMERALD
  is-type level-2-only
- net 49.0001.0100.0000.0011.00
+ net 49.0001.1500.0100.7007.00
+ set-overload-bit on-startup wait-for-bgp
+ lsp-password keychain ISIS-KEY-L4 level 2
  address-family ipv4 unicast
   metric-style wide
-  reference-bandwidth 10000000
+ !
+ address-family ipv6 unicast
+  metric-style wide
  !
  interface Loopback0
   passive
   address-family ipv4 unicast
+   prefix-sid index 70
  !
- interface Gi0/0/0/0        ! toward P1
+ interface GigabitEthernet0/0/0/0
+  circuit-type level-2-only
+  point-to-point
+  hello-password keychain ISIS-KEY-L4
   address-family ipv4 unicast
    metric 10
  !
- interface Gi0/0/0/1        ! toward P2
-  address-family ipv4 unicast
-   metric 10
 ```
 
-NET pattern confirms the scheme: `49.0001.0100.0000.00XX.00` where XX = zero-padded last loopback octet (e.g., PE1 → `0001`, P1 → `0021`, RR1 → `0011`, ASBR-A → `0031`).
+> R8 identical (NET `...8008`, index 80, overload-bit on-startup wait-for-bgp).
 
-**Explanation:**
-- `is-type level-1` on PEs restricts them to forming only L1 adjacencies — no L2 Hello is ever sent, so no L2 adjacency can form even if a neighbor is L2-capable.
-- `is-type level-1-2` on P1-P3 lets them run both L1 (toward PEs, Area 49.0001) and L2 (toward the backbone) simultaneously, acting as the Area Border Router.
-- `is-type level-2-only` on RR1/RR2/ASBR-A removes L1 entirely — they only ever appear in the backbone.
-- L1→L2 leaking is automatic on L1/L2 routers: P1-P3 redistribute their attached L1 PE loopbacks into L2 LSPs as external L1 routes carrying the ATT (attached) bit set in their own L1 LSP, telling L1-only PEs "I am the way out of this area" (default route candidate).
+**Why:** L1-only PEs install an `ATT`-bit default toward the nearest L1/L2 router (R3/R4). SR prefix-SIDs of remote PEs are *not* in the L1 database by default, so an SR LSP to a remote PE loopback cannot be built from the edge. Leaking the `150.1.0.0/16` host routes L2→L1 at R3/R4 puts the remote loopbacks (and their prefix-SIDs) into L1, so the label-switched path resolves end-to-end. `wait-for-bgp` keeps RRs from drawing transit until BGP is up.
 
 **Verify:**
 ```
-show isis neighbors
+show isis neighbors                 ! L1 on R1/R2/R5/R6, L1L2 on R3/R4, L2 on R7/R8
+show isis database level-1
+show isis database level-2
+show route 150.1.7.7/32             ! on R1: resolves via leaked L1 route (not just default)
 show isis adjacency detail
-show isis database verbose
-show route isis
 ```
-On PE1: `show isis database verbose` for its own L1 LSP should show the ATT bit set on P1's LSP (not PE1's). On P1: `show isis database level 2` should show PE1/PE2's /32s present as L1-sourced prefixes leaked into L2.
 
----
+### Task 1.2 — BGP Unified MPLS (BGP-LU / Seamless MPLS) across all three ASes
 
-### Task 1.2 — Segment Routing MPLS — New Prefix-SID Scheme — SOLUTION
+**Design:** `ipv4 labeled-unicast` on every ASBR (R5,R6,R12,R20,R21) and RR (R7,R8,R19,R30). ASBRs redistribute IGP loopbacks into BGP-LU with a label and set next-hop-self; BGP-LU is NOT redistributed back into any IGP. Emerald P-tier (R3/R4) use `allocate-label all`. At R5/R6 the MPLS label (Garnet/Gold side) is stitched to the SRv6 transport of Emerald.
 
-**SRGB:** `16000-23999` on all routers. **Partition:** PEs index `100+X`, P routers `200+X`, RR/ASBR `300+X` (X = last loopback octet). **Anycast-SID** `16050` shared P1+P2 only.
+#### R12 (Garnet ASBR) — IOS-XR
 
-**Global SRGB (all routers, representative PE1):**
+```
+router bgp 65200
+ address-family ipv4 unicast
+  allocate-label all
+ !
+ ! inter-AS eBGP-LU to Gold R21
+ neighbor 20.12.21.21
+  remote-as 65300
+  address-family ipv4 labeled-unicast
+   route-policy PASS in
+   route-policy PASS out
+ !
+ ! inter-AS eBGP-LU to Emerald R6
+ neighbor 10.6.12.6
+  remote-as 65100
+  address-family ipv4 labeled-unicast
+   route-policy PASS in
+   route-policy PASS out
+ !
+ ! iBGP-LU to Garnet RR R19
+ neighbor 150.2.19.19
+  remote-as 65200
+  update-source Loopback0
+  address-family ipv4 labeled-unicast
+   next-hop-self
+ !
+!
+route-policy PASS
+  pass
+end-policy
+```
+
+#### R19 (Garnet RR) — IOS-XR
+
+```
+router bgp 65200
+ address-family ipv4 labeled-unicast
+ !
+ neighbor-group RRC-LU
+  remote-as 65200
+  update-source Loopback0
+  address-family ipv4 labeled-unicast
+   route-reflector-client
+ !
+ neighbor 150.2.12.12 use neighbor-group RRC-LU   ! R12 ASBR
+ neighbor 150.2.14.14 use neighbor-group RRC-LU   ! R14 PE
+```
+
+**Stitch note (R5/R6):** Emerald is SRv6 (Task 1.5), Garnet/Gold are MPLS. BGP-LU carries MPLS labels in Garnet/Gold; at R5/R6 the BGP-LU next-hop is re-originated so that traffic entering Emerald is encapsulated into an SRv6 End.DT/End.X path instead of a label stack. Document that R5/R6 are the MPLS↔SRv6 boundary — the label-switched path terminates there and SRv6 transport takes over inside Emerald.
+
+**Verify:**
+```
+show bgp ipv4 labeled-unicast summary
+show bgp ipv4 labeled-unicast 150.3.22.22/32
+show mpls forwarding | include 150.3.22.22     ! on R14: LSP toward Gold R22
+```
+
+### Task 1.3 — Segment Routing on IS-IS (Gold + Garnet): prefix-SID ×10, SRGB/SRLB, anycast SID, TI-LFA, microloop avoidance
+
+**Design:** `segment-routing mpls` under IS-IS IPv4 on all Gold (R20–R23,R30) and Garnet (R11–R19) nodes. SRGB 16000–23999, SRLB 15000–15999. Prefix-SID index = last octet ×10. R14/R15 share anycast index 1140 (label 17140) on `150.2.114.114/32`. TI-LFA + microloop avoidance on all core interfaces.
+
+#### Global SR / SRLB (all SR nodes) — IOS-XR
+
 ```
 segment-routing
  global-block 16000 23999
+ local-block 15000 15999
+!
 ```
 
-**PE1 — prefix-SID 16101 (index 101), N-flag only, no explicit-null:**
+#### R22 (Gold PE) — IOS-XR
+
 ```
-router isis CORE
+router isis GOLD
+ is-type level-1-2
+ net 49.0003.1500.0302.2022.00
  address-family ipv4 unicast
+  metric-style wide
   segment-routing mpls
+  microloop avoidance protected
  !
  interface Loopback0
+  passive
   address-family ipv4 unicast
-   prefix-sid index 101 n-flag-clear-disable
+   prefix-sid index 220          ! label 16220
+ !
+ interface GigabitEthernet0/0/0/0
+  point-to-point
+  address-family ipv4 unicast
+   fast-reroute per-prefix
+   fast-reroute per-prefix ti-lfa
+   metric 10
+ !
 ```
-> On IOS-XR, the N-flag (node-SID) is set by default for loopback prefix-SIDs; `explicit-null` is a separate optional keyword you simply omit. Do not add `explicit-null`.
 
-**PE2:** `prefix-sid index 102` → absolute SID 16102
-**PE3:** `prefix-sid index 103` → absolute SID 16103
-**PE4:** `prefix-sid index 104` → absolute SID 16104
+> Gold R20→index 200, R21→210, R23→230, R30→300. Garnet R11→110, R13→130, R16→160, R19→190.
 
-**P1 — index 221 → SID 16221, PLUS anycast-SID 16050 (index 50) on a dedicated secondary loopback shared with P2:**
+#### R14 and R15 — anycast SID (Garnet redundant PE pair) — IOS-XR
+
 ```
-interface Loopback0
- ipv4 address 10.0.0.21 255.255.255.255
+! identical on BOTH R14 and R15
+interface Loopback1
+ ipv4 address 150.2.114.114 255.255.255.255
 !
-interface Loopback50
- ipv4 address 10.0.50.50 255.255.255.255
-!
-router isis CORE
- address-family ipv4 unicast
-  segment-routing mpls
+router isis GARNET
+ interface Loopback1
+  passive
+  address-family ipv4 unicast
+   prefix-sid absolute 17140      ! anycast, both PEs originate label 17140
  !
  interface Loopback0
+  passive
   address-family ipv4 unicast
-   prefix-sid index 221
+   prefix-sid index 140           ! R14 unique SID (R15 = index 150)
  !
- interface Loopback50
-  address-family ipv4 unicast
-   prefix-sid index 50
-   prefix-sid n-flag-clear          ! anycast prefix-SID: N-flag must be CLEARED (anycast, not unique-node)
 ```
 
-**P2 — index 222 → SID 16222, same anycast Loopback50/10.0.50.50 and index 50:**
-```
-interface Loopback0
- ipv4 address 10.0.0.22 255.255.255.255
-!
-interface Loopback50
- ipv4 address 10.0.50.50 255.255.255.255
-!
-router isis CORE
- address-family ipv4 unicast
-  segment-routing mpls
- !
- interface Loopback0
-  address-family ipv4 unicast
-   prefix-sid index 222
- !
- interface Loopback50
-  address-family ipv4 unicast
-   prefix-sid index 50
-   prefix-sid n-flag-clear
-```
-
-**P3 — index 223 → SID 16223 (no anycast participation):**
-```
-router isis CORE
- address-family ipv4 unicast
-  segment-routing mpls
- !
- interface Loopback0
-  address-family ipv4 unicast
-   prefix-sid index 223
-```
-
-**RR1 (index 311 → 16311), RR2 (index 312 → 16312), ASBR-A (index 331 → 16331):** same pattern as P1/P2 under `address-family ipv4 unicast segment-routing mpls`.
-
-**Explanation:**
-- The anycast-SID 16050 is advertised identically by P1 and P2 from the *same* address (10.0.50.50/32) with the N-flag cleared — this tells the SR control plane "multiple nodes own this SID equally," enabling ECMP: any router computing SPF to 16050 installs both P1's and P2's next-hops.
-- Index-based allocation (`prefix-sid index N`) means the absolute label is always `SRGB-start + N` = `16000+N`, so the scheme is portable across SRGB shifts.
-- No LDP anywhere — SR is the sole MPLS control plane (verify no `mpls ldp` process is configured/running).
+**Why anycast:** inter-AS VPN traffic can target `150.2.114.114` and ECMP to whichever of R14/R15 is closer; either PE terminates the service, giving PE redundancy with a single SID.
 
 **Verify:**
 ```
 show isis segment-routing label table
-show mpls label table
-show route ipv4 label 16101 detail
-show route ipv4 label 16050 detail      ! should show two paths / ECMP, next-hops = P1 and P2 physical interfaces
-show mpls ldp neighbor                   ! should return nothing — confirm LDP is NOT running anywhere
+show segment-routing mpls prefix-sid-map
+show mpls forwarding labels 16220
+show isis fast-reroute ti-lfa
+! confirm BOTH R14 and R15 originate 17140:
+show mpls forwarding labels 17140
 ```
 
----
+### Task 1.4 — SR-TE with explicit SID-lists (prefix-SID + adjacency-SID), binding-SID, autoroute, BGP color autosteer
 
-### Task 1.3 — Flex-Algo 128 with Include-All — SOLUTION
+**Design:** On R14, two explicit (hand-built) SR-TE policies. Policy A (color 300) forces R14→R13→R16→R15 (bypassing the R11↔R15 shortest path). Policy B (color 301) toward Gold R22 pinned via the R12↔R21 inter-AS adjacency-SID. Binding-SID 15300 on Policy A, autoroute include. R15 colors VPNv4 routes 300 to autosteer.
 
-**Affinity bits:** `LOW-LATENCY`=bit0 on P1-P2/P2-P3; `HIGH-CAPACITY`=bit1 on P1-RR1/P3-ASBR-A. Flex-Algo 128 = IGP metric, `include-all` requiring BOTH bits.
+**Step 1 — harvest adjacency-SIDs** (on R13 and the ASBRs):
+```
+show isis segment-routing label adjacency
+show mpls forwarding | include Adj
+```
+Assume (from the above): R13→R16 protected adj-SID = **24316**, R12→R21 adj-SID = **24221**. Use **protected** adj-SIDs so the segment survives local repair while still pinning the link.
 
-**Affinity-map (same on every L2 router — P1-P3, RR1, RR2, ASBR-A):**
+#### R14 — Policy A (color 300 → R15) and Policy B (color 301 → R22) — IOS-XR
+
 ```
 segment-routing
  traffic-eng
-  affinity-map
-   name LOW-LATENCY bit-position 0
-   name HIGH-CAPACITY bit-position 1
-```
-
-**Interface affinity tagging — P1 (toward P2 = LOW-LATENCY; toward RR1 = HIGH-CAPACITY):**
-```
-router isis CORE
- interface Gi0/0/0/2          ! P1-P2 link
-  address-family ipv4 unicast
-   affinity
-    affinity-name LOW-LATENCY
+  segment-list SL-TO-R15
+   index 10 mpls label 16130      ! prefix-SID R13
+   index 20 mpls label 24316      ! adjacency-SID R13->R16 (protected)
+   index 30 mpls label 16150      ! prefix-SID R15
+  !
+  segment-list SL-TO-R22
+   index 10 mpls label 16120      ! prefix-SID R12 (ASBR)
+   index 20 mpls label 24221      ! adjacency-SID R12->R21 inter-AS
+   index 30 mpls label 16220      ! prefix-SID R22 (via BGP-LU/Gold SR)
+  !
+  policy POLICY-A-R15
+   color 300 end-point ipv4 150.2.15.15
+   binding-sid mpls 15300
+   candidate-paths
+    preference 100
+     explicit segment-list SL-TO-R15
+   autoroute
+    include ipv4 150.2.15.15/32
+  !
+  policy POLICY-B-R22
+   color 301 end-point ipv4 150.3.22.22
+   candidate-paths
+    preference 100
+     explicit segment-list SL-TO-R22
  !
- interface Gi0/0/0/3          ! P1-RR1 link
-  address-family ipv4 unicast
-   affinity
-    affinity-name HIGH-CAPACITY
+!
 ```
-Mirror on P2 (P1-P2 and P2-P3 interfaces = `LOW-LATENCY`) and P3 (P2-P3 = `LOW-LATENCY`, P3-ASBR-A = `HIGH-CAPACITY`).
 
-**Flex-Algo 128 definition — advertised from P1 only:**
+#### R15 — color VPNv4 routes 300 (autosteer at R14) — IOS-XR
+
+```
+extcommunity-set opaque COLOR-300
+ 300
+end-set
+!
+route-policy SET-COLOR-300
+  set extcommunity color COLOR-300
+  pass
+end-policy
+!
+router bgp 65200
+ address-family vpnv4 unicast
+ !
+ neighbor 150.2.19.19                 ! to RR R19
+  address-family vpnv4 unicast
+   route-policy SET-COLOR-300 out
+ !
+```
+
+**Why:** color 300 on the VPNv4 route resolves its next-hop onto POLICY-A at R14 automatically (no PBR/static). The binding-SID 15300 lets an upstream node invoke the whole explicit path with a single label (hierarchical SR-TE).
+
+**Verify:**
+```
+show segment-routing traffic-eng policy color 300 detail     ! SID list + binding-sid 15300
+show segment-routing traffic-eng policy color 301 detail
+show bgp vpnv4 unicast <prefix> detail                       ! color 300 -> POLICY-A
+traceroute sr-mpls ...                                       ! forced R13->R16->R15 hops
+```
+
+### Task 1.5 — SRv6 on Emerald (AS 65100): F3216 uSID locators, PSP/USD, locator tags, SRv6 L3VPN transport
+
+**Design:** Native SRv6 on R1–R8 using uSID (F3216). Locator per node from `fc00:1:<R#>::/48`. End/End.X SIDs with PSP+USD. Locators tagged 1000 for controlled leaking. R1/R2 VRFs use per-VRF SRv6 SIDs (End.DT4/End.DT6) instead of MPLS labels.
+
+#### R1 (PE) — IOS-XR
+
+```
+segment-routing
+ srv6
+  locators
+   locator LOC-R1
+    micro-segment behavior unode psp-usd
+    prefix fc00:1:1::/48
+    tag 1000
+   !
+  !
+ !
+!
+router isis EMERALD
+ address-family ipv6 unicast
+  segment-routing srv6
+   locator LOC-R1
+  !
+ !
+!
+! per-VRF SRv6 transport (Blue/Green)
+vrf GREEN
+ address-family ipv4 unicast
+  segment-routing srv6
+   locator LOC-R1
+   alloc mode per-vrf
+ !
+ address-family ipv6 unicast
+  segment-routing srv6
+   locator LOC-R1
+   alloc mode per-vrf
+ !
+!
+router bgp 65100
+ address-family vpnv4 unicast
+  segment-routing srv6
+   locator LOC-R1
+ !
+ address-family vpnv6 unicast
+  segment-routing srv6
+   locator LOC-R1
+ !
+ vrf GREEN
+  rd auto
+  address-family ipv4 unicast
+   segment-routing srv6
+    alloc mode per-vrf
+```
+
+> R2–R8 identical pattern, `prefix fc00:1:<R#>::/48`, `locator LOC-R<#>`. P/RR nodes need only the locator + IS-IS SRv6 advertisement (no VRF alloc).
+
+**Why PSP/USD:** PSP (Penultimate Segment Pop) lets the penultimate hop remove the SRH; USD (Ultimate Segment Decapsulation) lets the final node decapsulate — together they trim SRH processing on transit and at the egress PE. End.DT4/DT6 are the per-VRF decapsulate-and-lookup SIDs that replace the MPLS VPN label.
+
+**Verify:**
+```
+show segment-routing srv6 sid
+show segment-routing srv6 locator LOC-R1 detail
+show isis database verbose | include SRv6|Locator
+show bgp vpnv4 unicast vrf GREEN <prefix> detail      ! End.DT4 SID present (no MPLS label)
+show cef vrf GREEN <prefix>                            ! IPv6 SRv6 encap, not label stack
+```
+
+### Task 1.6 — SR-ODN: color-triggered on-demand policies, PCE latency path, ECMP latency margin 3000 us
+
+**Design:** R19 is SR-PCE. R14 is a PCC delegating to R19. VPNv4 routes arriving with color 400 trigger an ODN policy whose dynamic path optimizes min-delay via PCE, with a 3000 us latency margin so all paths within 3000 us of best are installed as ECMP. R15 tags customer routes color 400.
+
+#### R19 (SR-PCE) — IOS-XR
+
+```
+pce
+ address ipv4 150.2.19.19
+!
+segment-routing
+ traffic-eng
+  pcc
+   ! (R19 itself is the PCE; PCC config lives on headends)
+```
+
+#### R14 (PCC + ODN template) — IOS-XR
+
 ```
 segment-routing
  traffic-eng
-  flex-algo 128
-   metric-type igp
-   affinity
-    include-all LOW-LATENCY HIGH-CAPACITY
-   advertise-definition
-```
-> Only P1 configures `advertise-definition`; all other participating routers (P2, P3, RR1, RR2, ASBR-A) configure the matching `flex-algo 128` block *without* `advertise-definition` so they learn/accept P1's advertised definition and merely participate.
-
-**Participation + Flex-Algo-128 prefix-SID — all 6 L2 routers, representative P1 (index 128021, dedicated SRGB 24000-27999):**
-```
-segment-routing
- global-block 16000 23999
- srgb 24000 27999                       ! disjoint range dedicated to algorithm 128 — IOS-XR requires per-algo SRGB if not using the default algo-0 block
+  pcc
+   source-address ipv4 150.2.14.14
+   pce address ipv4 150.2.19.19
+   report-all
+  !
+  on-demand color 400
+   dynamic
+    pcep                            ! delegate computation to R19
+    metric type latency
+    metric margin absolute 3000     ! all paths within 3000us of best -> ECMP
+   !
+  !
+ !
 !
-router isis CORE
+```
+
+#### R15 — tag customer routes color 400 — IOS-XR
+
+```
+extcommunity-set opaque COLOR-400
+ 400
+end-set
+!
+route-policy SET-COLOR-400
+  set extcommunity color COLOR-400
+  pass
+end-policy
+!
+router bgp 65200
+ neighbor 150.2.19.19
+  address-family vpnv4 unicast
+   route-policy SET-COLOR-400 out
+```
+
+**Why the margin:** strict min-delay installs only the single lowest-latency path. `metric margin absolute 3000` relaxes that to any path whose latency is within 3000 us of the best, so multiple near-equal paths load-share (ECMP). Tradeoff: more bandwidth/resilience vs some flows taking a slightly-higher-latency path.
+
+**Verify:**
+```
+show pce lsp
+show pce peer                                                   ! R14 as PCC
+show segment-routing traffic-eng policy color 400 detail        ! PCEP delegated, margin 3000, >1 path
+show bgp vpnv4 unicast <prefix> detail                          ! color 400 -> ODN policy
+```
+
+### Task 1.7 — Flex-Algo 129 with include-all affinity, per-algo prefix-SID, constrained SR policy
+
+**Design:** Flex-Algo 129 = min-delay, `affinity include-all BLUE`. Only BLUE-tagged links (R13↔R14, R13↔R16, R11↔R15) participate. Per-algo prefix-SID distinct from Algo-0. SR-TE policy on R14 constrained to algo 129 toward R16.
+
+#### R14 (and all Garnet nodes) — Flex-Algo definition — IOS-XR
+
+```
+router isis GARNET
+ flex-algo 129
+  metric-type delay
+  affinity include-all BLUE
+  advertise-definition
+ !
  address-family ipv4 unicast
   segment-routing mpls
  !
  interface Loopback0
   address-family ipv4 unicast
-   prefix-sid algorithm 128 index 128021
-   fast-reroute per-prefix algorithm 128    ! (ties into Section 4 — participation flag)
-```
-- P1: index 128021 → absolute SID (24000+128021 is out of range for a flat SRGB; per the task's own numbering of "index = 128000+X" treat this as a *global absolute SID* assignment, not an SRGB-relative index) — on IOS-XR, when the absolute SID exceeds a single practical SRGB window, allocate it as an **absolute** SID instead of an index:
-```
- interface Loopback0
+   prefix-sid index 140                 ! algo 0
+   prefix-sid algorithm 129 index 1290  ! algo-129 per-algo SID (distinct)
+ !
+!
+affinity-map
+ name BLUE bit-position 0
+!
+! tag participating links BLUE (example R13<->R14 on R14):
+router isis GARNET
+ interface GigabitEthernet0/0/0/1
   address-family ipv4 unicast
-   prefix-sid algorithm 128 absolute 128021
-```
-- P2: `absolute 128022`, P3: `absolute 128023`, RR1: `absolute 128311`... (continue `128000 + last-loopback-octet` per task wording, e.g. RR1 loopback .11 → `128011`, RR2 → `128012`, ASBR-A → `128031`).
-
-**Documented approach:** this lab uses **absolute** Flex-Algo prefix-SIDs (not index-relative) specifically because `128000+X` does not cleanly fit inside a single contiguous SRGB without reserving an enormous disjoint block; the disjoint `24000-27999` SRGB is retained for any Flex-Algo-128 SIDs you choose to allocate by index on smaller deployments, but the explicit absolute values above are what's used here to match the task's literal numbering.
-
-**Explanation (include-all vs exclude-any):**
-- `include-all LOW-LATENCY HIGH-CAPACITY` means a link is eligible for algorithm 128's SPF **only if it carries both** bits set. In this topology, no single physical link carries both affinities simultaneously (P1-P2/P2-P3 only carry LOW-LATENCY; P1-RR1/P3-ASBR-A only carry HIGH-CAPACITY) — so the Flex-Algo-128 topology is **empty/disconnected** by design, visibly demonstrating the strict-subset nature of include-all versus exclude-any (which would have pruned only explicitly excluded links, leaving most of the topology intact).
-- This is intentional in the task to contrast the two models — document in your lab notes that an administrator must tag at least one link with both bits for Algorithm 128 to carry live traffic; as configured, it validates the *mechanism*, not a usable path.
-
-**Verify:**
-```
-show isis fast-reroute summary
-show segment-routing traffic-eng ipv4 topology algorithm 128
-show route algorithm 128
-show isis database verbose | include "Flex-Algo|Affinity"
+   affinity flex-algo name BLUE
+ !
 ```
 
----
+> Tag the BLUE link-set endpoints: R13↔R14, R13↔R16, R11↔R15. Any link NOT tagged BLUE is excluded from Algo 129 (include-all requires every listed affinity present). Enable `flex-algo 129` participation on all Garnet nodes.
 
-### Task 1.4 — SR-TE Explicit Adjacency-SID Policy — SOLUTION
+#### R14 — SR-TE policy constrained to Algo 129 toward R16 — IOS-XR
 
-**Step 1 — enable adj-SID advertisement (default-on, but make explicit) on every L2-backbone core-facing interface of P1, P2, P3, RR1, RR2:**
-```
-router isis CORE
- interface Gi0/0/0/2
-  address-family ipv4 unicast
-   adjacency-sid                 ! advertise, do not suppress
-```
-(Repeat per core-facing interface on P1, P2, P3, RR1, RR2 — omit the `suppress` keyword everywhere.)
-
-**Step 2 — record adjacency-SIDs:**
-```
-show isis adjacency detail
-show isis database verbose | include "Adjacency-SID|Local Adj"
-```
-Example recorded values (yours will differ per EVE-NG allocation — record and substitute):
-- P1 → P2 adj-SID: `24001`
-- P2 → P3 adj-SID: `24002`
-- PE1 → P1 adj-SID: `24010`
-- P1 → RR1 adj-SID: `24011`
-- RR1 → ... (failover path) adj-SID: `24012`
-
-**Step 3/4 — PE1 SR-TE policy `PE1-TO-PE4-EXPLICIT`:**
 ```
 segment-routing
  traffic-eng
-  policy PE1-TO-PE4-EXPLICIT
-   color 100 end-point ipv4 10.0.0.4
+  policy POLICY-ALGO129-R16
+   color 129 end-point ipv4 150.2.16.16
    candidate-paths
-    preference 200
-     explicit segment-list PRIMARY-ADJSID
-    !
     preference 100
-     explicit segment-list BACKUP-VIA-RR1
-  !
-  segment-list PRIMARY-ADJSID
-   index 10 mpls label 24010      ! PE1->P1 adj-SID
-   index 20 mpls label 24001      ! P1->P2 adj-SID
-   index 30 mpls label 24002      ! P2->P3 adj-SID
-   index 40 mpls label 24020      ! P3->PE4 adj-SID (recorded value)
-  !
-  segment-list BACKUP-VIA-RR1
-   index 10 mpls label 24010      ! PE1->P1 adj-SID
-   index 20 mpls label 24011      ! P1->RR1 adj-SID
-   index 30 mpls label 24013      ! RR1->P3 adj-SID (recorded value)
-   index 40 mpls label 24020      ! P3->PE4 adj-SID
+     dynamic
+      metric type latency
+     constraints
+      segments
+       sid-algorithm 129
 ```
 
-**Step 5 — steer via explicit color community (not autoroute):**
-```
-route-policy COLOR-100-SET
- set extcommunity color color-100
-end-policy
-!
-route-policy COLOR-100-SET-VALUE
- set extcommunity color (100, 0)
-end-policy
-!
-router bgp 65000
- address-family vpnv4 unicast
- !
- vrf CUST-A
-  address-family ipv4 unicast
-   ! on PE4 (the originator), apply the color-setting policy to the redistributed/advertised prefixes:
-   redistribute connected route-policy COLOR-100-SET-VALUE
-```
-On PE1 (the consumer), steering into the policy is **automatic once a route carries the color-100 extended-community and the policy with matching color+endpoint exists** — no autoroute `install-on-color` is used; this is standard color-based (explicit) steering, matching VPNv4 next-hop = PE4 (the policy endpoint) + color 100 to the local `PE1-TO-PE4-EXPLICIT` policy. No `autoroute announce` or `autoroute include-ipv4` is configured anywhere.
-
-**Step 6 — failover validation:** shut the P1-P2 link.
-```
-interface Gi0/0/0/2
- shutdown
-```
-Because both candidate-paths are **explicit** (not dynamic/CSPF), the headend does NOT recompute the segment-list on failure. Instead, PE1 detects the primary candidate-path's segment-list is invalid (an adj-SID in the list no longer resolves because the P1-P2 adjacency is down), marks preference-200 path down, and falls back to the preference-100 `BACKUP-VIA-RR1` path. Traffic resumes via P1→RR1→P3→PE4. If BOTH candidate-paths had been dynamic, CSPF would have silently recomputed a fresh SPT instead of needing a pre-built backup — this is the operational distinction being tested.
+**Why include-all vs exclude-any:** `include-all BLUE` is affirmative — a link must carry BLUE to be used, so the algo topology is exactly the BLUE overlay. This is the inverse of LAB3's `exclude-any` (which removed only flagged links).
 
 **Verify:**
 ```
-show segment-routing traffic-eng policy name PE1-TO-PE4-EXPLICIT detail
-show segment-routing traffic-eng forwarding policy name PE1-TO-PE4-EXPLICIT
-show isis database verbose | include Adjacency-SID
-```
-After the shut: `show segment-routing traffic-eng policy name PE1-TO-PE4-EXPLICIT detail` should show the active candidate-path transitioned from preference 200 to preference 100.
-
----
-
-### Task 1.5 — SRv6 New Locator Assignments — SOLUTION
-
-**Locator blocks:** `fcff:0:0::/48`; PEs `fcff:0:0:1XX::/64`, P routers `fcff:0:0:2XX::/64`, RR/ASBR `fcff:0:0:3XX::/64`. End SID = `::1` suffix in-block.
-
-**PE1:**
-```
-ipv6 unicast-routing
-!
-segment-routing srv6
- locator PE1-LOC
-  prefix fcff:0:0:101::/64
-!
-interface Loopback0
- ipv6 address fcff:0:0:101::1/128
-!
-router isis CORE
- address-family ipv6 unicast
-  segment-routing srv6
-   locator PE1-LOC
- !
- interface Loopback0
-  address-family ipv6 unicast
-```
-(PE2 → `fcff:0:0:102::/64`, PE3 → `fcff:0:0:103::/64`, PE4 → `fcff:0:0:104::/64` — same pattern.)
-
-**P1:**
-```
-ipv6 unicast-routing
-!
-segment-routing srv6
- locator P1-LOC
-  prefix fcff:0:0:221::/64
-!
-interface Loopback0
- ipv6 address fcff:0:0:221::1/128
-!
-router isis CORE
- address-family ipv6 unicast
-  segment-routing srv6
-   locator P1-LOC
- !
- interface Loopback0
-  address-family ipv6 unicast
- !
- interface Gi0/0/0/2
-  address-family ipv6 unicast
-```
-(P2 → `fcff:0:0:222::/64`, P3 → `fcff:0:0:223::/64`.)
-
-**RR1:**
-```
-segment-routing srv6
- locator RR1-LOC
-  prefix fcff:0:0:311::/64
-!
-interface Loopback0
- ipv6 address fcff:0:0:311::1/128
-!
-router isis CORE
- address-family ipv6 unicast
-  segment-routing srv6
-   locator RR1-LOC
- !
- interface Loopback0
-  address-family ipv6 unicast
-```
-(RR2 → `fcff:0:0:312::/64`, ASBR-A → `fcff:0:0:331::/64`.)
-
-**End.X SIDs** are generated automatically per core-facing IS-IS IPv6 adjacency once `segment-routing srv6` + `address-family ipv6 unicast` is enabled under each interface on P1-P3/RR1-RR2 — no separate manual End.X allocation command is required on IOS-XR; they derive from the locator block's dynamic allocation pool (confirm with `show segment-routing srv6 sid` — look for `End.X` type entries scoped to each router's own `/64`).
-
-**Explanation:**
-- The locator's `::1` End SID is the Node-SID equivalent for SRv6 (global reachability into the router).
-- End.X SIDs (adjacency equivalent) are per-link and remain inside the owning router's own locator block — e.g., P1's End.X for the P1-P2 adjacency is allocated from `fcff:0:0:221::/64`, never from P2's block.
-- SR-MPLS (label-based, Tasks 1.2-1.4) and SRv6 (IPv6-based, this task) are entirely separate data planes — SR-MPLS forwards on the label stack in the MPLS header; SRv6 forwards on the IPv6 destination address / SRH. They can coexist on the same links with zero collision because one consumes MPLS label space and the other consumes IPv6 address space.
-
-**Verify:**
-```
-show segment-routing srv6 locator detail
-show segment-routing srv6 sid
-show isis segment-routing srv6 all
-show isis database verbose | include "SRv6|Locator"
+show segment-routing traffic-eng flex-algo
+show isis flex-algo 129
+show segment-routing traffic-eng policy name POLICY-ALGO129-R16 detail
+! confirm a non-BLUE link is never used even if it is the algo-0 shortest path
+show isis topology flex-algo 129
 ```
 
 ---
 
-### Task 1.6 — SR-ODN with ECMP Margin — SOLUTION
+## Section 2 — Architecture and Services (25%)
 
-**ODN template on PE1-PE4 (representative PE1), dynamic path + Flex-Algo 128 constraint + 20% ECMP margin:**
-```
-segment-routing
- traffic-eng
-  on-demand color 100
-   dynamic
-    metric-type te
-    algorithm 128
-   !
-   ecmp-margin percent 20
-```
-> On IOS-XR, the ECMP margin for dynamic/PCC-computed paths is a path-option-level knob (`ecmp-margin percent <N>` under the dynamic path-option or the global ODN template, depending on release). If your running image only exposes it under `explicit`/`dynamic` sub-mode, nest it accordingly:
-```
-segment-routing
- traffic-eng
-  on-demand color 100
-   dynamic
-    metric-type te
-    algorithm 128
-    ecmp-margin percent 20
-```
+### Task 2.1 — EVPN-VPWS: T-LDP VPWS (R16↔R1) + EVPN-VPWS (R14↔R15)
 
-**Trigger — PE4 advertises a VPNv4 prefix tagged color 100:**
+**Design:** Classic T-LDP VPWS for Red circuit R16↔R1 (PW-ID 2001) stitched across the SR-MPLS↔SRv6 boundary at the ASBRs. EVPN-VPWS (RFC 8214) R14↔R15, EVI 2002, local AC-IDs 2142 (R14) / 2152 (R15).
+
+#### R16 (Garnet PE) — T-LDP VPWS to R1 — IOS-XR
+
 ```
-route-policy SET-COLOR-100
- set extcommunity color (100, 0)
-end-policy
+mpls ldp
+ router-id 150.2.16.16
 !
-router bgp 65000
- vrf CUST-A
-  address-family ipv4 unicast
-   redistribute connected route-policy SET-COLOR-100
+l2vpn
+ xconnect group RED
+  p2p RED-PW
+   interface GigabitEthernet0/0/0/3.100     ! customer access (R27 side)
+   neighbor ipv4 150.1.1.1 pw-id 2001
+ !
+!
 ```
-PE1, upon receiving this VPNv4 prefix via RR1/RR2 with color-100 and no matching manually-configured SR-TE policy to PE4, auto-instantiates an ODN SR-TE policy using the `on-demand color 100` template — endpoint = PE4 (the BGP next-hop), algorithm 128 constrained, dynamic path.
 
-**Explanation — ECMP margin vs strict equal-cost:**
-- Strict ECMP only installs paths whose metric is **exactly equal** to the best path's metric.
-- An ECMP margin of 20% instructs the path computation to also install any path whose metric is within 20% of the best metric (`best_metric * 1.20`) as an additional load-balanced SID-list, even though it is not perfectly equal-cost.
-- This is valuable in a Flex-Algo-constrained topology where asymmetric link metrics are common (because the constrained subgraph may have only slightly unequal paths that would otherwise be artificially excluded from load-balancing by strict ECMP, wasting usable capacity).
+#### R1 (Emerald PE) — T-LDP VPWS to R16 — IOS-XR
 
-**Verify:**
 ```
-show segment-routing traffic-eng policy color 100 detail
-show segment-routing traffic-eng odn-template
-show cef vrf CUST-A 192.168.4.0/24 detail
+l2vpn
+ xconnect group RED
+  p2p RED-PW
+   interface GigabitEthernet0/0/0/2.100     ! customer access (R29 side)
+   neighbor ipv4 150.2.16.16 pw-id 2001
+ !
+!
 ```
-Confirm the auto-instantiated policy's forwarding entry (`show segment-routing traffic-eng forwarding policy color 100 endpoint 10.0.0.4`) lists **multiple** weighted SID-lists if more than one path candidate falls within the 20% margin.
 
----
-## Section 2 — Services: EVPN, Inter-AS, QoS, L3VPN
+**Stitch note:** R1 is SRv6, R16 is SR-MPLS. The targeted-LDP session rides BGP-LU reachability (Task 1.2); at R5/R6 the PW transport label is stitched to the Emerald SRv6 path. T-LDP needs a targeted session per PW — contrast with EVPN below which uses one BGP control plane.
 
-### Task 2.1 — EVPN New EVI Numbers and AC IDs — SOLUTION
+#### R14 — EVPN-VPWS, EVI 2002, local AC-ID 2142 — IOS-XR
 
-**EVI 4001 = VPWS (PE2↔PE3), AC-IDs 4001001/4001002. EVI 4002 = ELAN (PE1/PE2/PE4), ESI `0000.0000.0000.4002.02`, single-active on PE1/PE2.**
-
-**Control plane — enable l2vpn evpn AF on existing MP-BGP (RR1/RR2 and all PEs). RR1 (representative):**
 ```
-router bgp 65000
+router bgp 65200
  address-family l2vpn evpn
  !
- neighbor-group RRC-EVPN
-  remote-as 65000
-  update-source Loopback0
+ neighbor 150.2.19.19
   address-family l2vpn evpn
-   route-reflector-client
+!
+l2vpn
+ xconnect group EVPN-VPWS
+  p2p EVPN-R14-R15
+   interface GigabitEthernet0/0/0/4.100
+   neighbor evpn evi 2002 target 2152 source 2142
  !
- neighbor 10.0.0.1
-  use neighbor-group RRC-EVPN
- neighbor 10.0.0.2
-  use neighbor-group RRC-EVPN
- neighbor 10.0.0.3
-  use neighbor-group RRC-EVPN
- neighbor 10.0.0.4
-  use neighbor-group RRC-EVPN
-```
-On each PE, add the EVPN AF to the existing RR session:
-```
-router bgp 65000
- address-family l2vpn evpn
- !
- neighbor 10.0.0.11
-  address-family l2vpn evpn
- neighbor 10.0.0.12
-  address-family l2vpn evpn
+!
 ```
 
-**EVI 4001 — EVPN VPWS point-to-point. PE2:**
+#### R15 — EVPN-VPWS, EVI 2002, local AC-ID 2152 — IOS-XR
+
 ```
 l2vpn
  xconnect group EVPN-VPWS
-  p2p PE2-PE3-VPWS
-   interface Gi0/0/0/5                 ! AC toward local CE
-   neighbor evpn evi 4001 target 4001002 source 4001001
-```
-**PE3:**
-```
-l2vpn
- xconnect group EVPN-VPWS
-  p2p PE3-PE2-VPWS
-   interface Gi0/0/0/5
-   neighbor evpn evi 4001 target 4001001 source 4001002
-```
-> `source` = local AC-ID, `target` = remote AC-ID. PE2 source 4001001/target 4001002; PE3 mirrors.
-
-**EVI 4002 — EVPN ELAN (multipoint) across PE1, PE2, PE4, with single-active multihoming on PE1/PE2.**
-
-PE1 (multihomed, single-active):
-```
-evpn
- interface Bundle-Ether1
-  ethernet-segment
-   identifier type 0 00.00.00.00.00.00.40.02.02
-   load-balancing-mode single-active
+  p2p EVPN-R14-R15
+   interface GigabitEthernet0/0/0/2.100
+   neighbor evpn evi 2002 target 2142 source 2152
+ !
 !
-l2vpn
- bridge group BG-4002
-  bridge-domain BD-4002
-   interface Bundle-Ether1
-   evi 4002
-!
-interface Bundle-Ether1
- ! bundle facing the multihomed CE access
 ```
-PE2 (second leg of the same ES — identical ESI, single-active):
-```
-evpn
- interface Bundle-Ether1
-  ethernet-segment
-   identifier type 0 00.00.00.00.00.00.40.02.02
-   load-balancing-mode single-active
-!
-l2vpn
- bridge group BG-4002
-  bridge-domain BD-4002
-   interface Bundle-Ether1
-   evi 4002
-```
-PE4 (single-homed member of EVI 4002):
-```
-l2vpn
- bridge group BG-4002
-  bridge-domain BD-4002
-   interface Gi0/0/0/6
-   evi 4002
-```
-> ESI `0000.0000.0000.4002.02` is written in IOS-XR type-0 nibble form as `00.00.00.00.00.00.40.02.02` (the task's dotted form maps to the 9-octet ESI value after the type byte). Both PE1 and PE2 configure the **identical** ESI so the control plane recognizes them as the two legs of one Ethernet Segment.
 
-**Explanation:**
-- `single-active` → only the Designated Forwarder (DF) elected for the ES forwards BUM/known-unicast toward the CE at any time; the non-DF PE blocks its AC. All-active (not used here) would hash flows across both PEs.
-- Reusing the VPNv4 RR infra for `l2vpn evpn` keeps a single BGP overlay — no separate EVPN RR.
-- Route types: Type-1 (Ethernet Auto-Discovery, per-ES and per-EVI, used for fast withdrawal/aliasing), Type-2 (MAC/IP advertisement), Type-3 (Inclusive Multicast, for BUM replication in ELAN), Type-4 (Ethernet Segment route, for DF election among PE1/PE2).
+**Why:** EVPN-VPWS cross-connects by matching local `source` AC-ID to remote `target` AC-ID within the EVI; BGP EVPN (RD/RT) is the single control plane over any transport — no per-PW targeted LDP.
 
 **Verify:**
 ```
-show evpn evi detail
-show evpn evi vpn-id 4002 detail
-show evpn ethernet-segment detail           ! confirm DF election + single-active
+show l2vpn xconnect group RED
+show evpn evi 2002 detail
+show l2vpn xconnect summary                 ! EVPN-VPWS state UP, remote AC-ID matched
 show bgp l2vpn evpn
-show l2vpn xconnect group EVPN-VPWS detail   ! EVI 4001 state = UP
 ```
 
----
+### Task 2.2 — L3VPN: Inter-AS Option B on ALL inter-AS links, PE-CE BGP+OSPF, as-override, redistribute-connected
 
-### Task 2.2 — Inter-AS Option C — SOLUTION
+**Design rule:** every inter-AS VPNv4/VPNv6 handoff is Option B (eBGP VPNv4 between ASBR pairs, next-hop-self + fresh label, `retain route-target all`). No Option A anywhere. Green intra-AS: R15↔R17 OSPF, R16↔R18 eBGP 65910. R1/R20 use `redistribute connected` with a scoping route-policy. OSPF PE-CE uses down-bit/domain-tag. as-override on shared-ASN spokes.
 
-**Model:** eBGP IPv4+label (BGP-LU) ASBR-A↔ASBR-B exchanging only /32 loopbacks; multihop eBGP VPNv4 RR1↔remote-RR with `next-hop-unchanged`; ASBRs are pure LSRs (zero VPNv4 state).
+#### R12 (ASBR) — Option B VPNv4 to Gold R21 — IOS-XR
 
-**ASBR-A (AS 65000) — BGP-LU to ASBR-B + advertise loopbacks needed for the end-to-end LSP:**
 ```
-route-policy BGP-LU-OUT
- pass
-end-policy
-!
-route-policy BGP-LU-IN
- pass
-end-policy
-!
-router bgp 65000
- address-family ipv4 unicast
-  network 10.0.0.31/32                  ! ASBR-A own loopback
-  network 10.0.0.11/32                  ! RR1 loopback (so remote AS can reach our RR)
-  network 10.0.0.12/32                  ! RR2 loopback
-  allocate-label all                    ! turn IPv4 unicast into labeled-unicast
+router bgp 65200
+ address-family vpnv4 unicast
+  retain route-target all          ! keep RTs we don't import, for re-advertisement
  !
- neighbor 10.9.0.2                       ! ASBR-B
-  remote-as 65100
-  address-family ipv4 labeled-unicast
-   route-policy BGP-LU-IN in
-   route-policy BGP-LU-OUT out
-```
-> IOS-XR implements BGP-LU via `address-family ipv4 unicast` + `allocate-label all`, with the neighbor AF declared as `ipv4 labeled-unicast`. The PE loopbacks (10.0.0.1-4) must also be reachable+labeled — redistribute them from IS-IS/SR into BGP-LU or add explicit `network` statements for each PE loopback that must be reachable across the inter-AS boundary. Simplest: add `network 10.0.0.1/32 ... 10.0.0.4/32` as well, or `redistribute isis CORE route-policy <PE-loopbacks-only>`.
-
-**ASBR-B (AS 65100) — mirror:**
-```
-router bgp 65100
- address-family ipv4 unicast
-  network 10.0.0.32/32                  ! ASBR-B own loopback
-  network <remote-RR-loopback>/32
-  allocate-label all
- !
- neighbor 10.9.0.1
-  remote-as 65000
-  address-family ipv4 labeled-unicast
-   route-policy BGP-LU-IN in
-   route-policy BGP-LU-OUT out
-```
-
-**Multihop eBGP VPNv4 RR1 (AS 65000) ↔ remote-RR (AS 65100):**
-```
-router bgp 65000
- neighbor <remote-RR-loopback>
-  remote-as 65100
-  ebgp-multihop 255
-  update-source Loopback0
+ neighbor 20.12.21.21
+  remote-as 65300
   address-family vpnv4 unicast
-   route-policy PASS-ALL in
-   route-policy PASS-ALL out
-   next-hop-unchanged
+   route-policy PASS in
+   route-policy PASS out
+   next-hop-self                   ! re-originate with fresh label at the boundary
+ !
+ neighbor 150.2.19.19              ! iBGP to RR R19
+  address-family vpnv4 unicast
+   next-hop-self
 ```
-> `next-hop-unchanged` is the Option C linchpin: RR1 passes PE next-hops (10.0.0.1-4) to the remote RR **unmodified**, so remote PEs resolve the VPNv4 next-hop over the end-to-end BGP-LU LSP that transits the ASBRs as plain LSRs. The RR must also carry the color/label infra; this VPNv4 session rides the BGP-LU LSP because the remote-RR loopback is reachable+labeled end-to-end.
 
-**ASBRs carry ZERO VPNv4 routes** — they are never configured with `address-family vpnv4 unicast` toward each other; only `ipv4 labeled-unicast`. This is what makes it Option C (not Option B, where ASBRs would hold and re-originate VPNv4 NLRI).
+> R5↔R11, R6↔R12, R6↔R20 ASBR pairs follow the same Option B pattern (eBGP vpnv4, retain route-target all, next-hop-self). No VRF-to-VRF (Option A) anywhere.
 
-**Explanation:**
-- Option C decouples the VPN control plane (RR-to-RR, end-to-end) from the inter-AS label-transport plane (ASBR BGP-LU). It scales best for many VPNs because ASBRs don't hold per-VPN state.
-- The end-to-end LSP is built by stitching: PE→(SR/IGP label)→ASBR-A→(BGP-LU label)→ASBR-B→(SR/IGP label)→remote-PE.
+#### R15 — Green VRF, OSPF PE-CE to R17 — IOS-XR
+
+```
+vrf GREEN
+ address-family ipv4 unicast
+  import route-target 65200:100
+  export route-target 65200:100
+!
+router ospf GREEN-PE-CE
+ vrf GREEN
+  domain-id 0.0.0.100
+  address-family ipv4 unicast
+  area 0
+   interface GigabitEthernet0/0/0/0    ! 192.168.6.15 -> R17
+ !
+!
+router bgp 65200
+ vrf GREEN
+  rd 65200:100
+  address-family ipv4 unicast
+   redistribute ospf GREEN-PE-CE
+```
+
+#### R16 — Green VRF, eBGP PE-CE to R18 (as-override) — IOS-XR
+
+```
+router bgp 65200
+ vrf GREEN
+  rd 65200:100
+  address-family ipv4 unicast
+   redistribute connected route-policy GREEN-CONN   ! (style practice; see R1/R20)
+  neighbor 192.168.7.18
+   remote-as 65910
+   address-family ipv4 unicast
+    route-policy PASS in
+    route-policy PASS out
+    as-override                                      ! rewrite 65910 so spoke accepts
+```
+
+#### R1 and R20 — redistribute connected, scoped — IOS-XR
+
+```
+! R1 (Emerald PE, Blue VRF toward R32); R20 (Gold PE, Yellow VRF toward R24)
+prefix-set PE-CE-CONN
+ 192.168.3.0/24,       ! R1<->R32 Blue   (on R20: 192.168.9.0/24 R20<->R24 Yellow)
+end-set
+!
+route-policy SCOPE-CONN
+  if destination in PE-CE-CONN then
+    pass
+  else
+    drop
+  endif
+end-policy
+!
+router bgp 65100
+ vrf BLUE
+  rd 65100:25
+  address-family ipv4 unicast
+   redistribute connected route-policy SCOPE-CONN    ! only the PE-CE subnet, never core/mgmt
+```
+
+**Why:** `redistribute connected` without a route-policy would leak core and management connecteds into the VPN. The prefix-set guardrail scopes it to exactly the PE-CE subnet. OSPF `domain-id` + down-bit stops the core being seen as OSPF Area 0 (prevents false intra-area inference / routing loops). `as-override` rewrites the provider-seen peer ASN so a spoke CE sharing the ASN doesn't drop the route on AS_PATH loop detection.
 
 **Verify:**
 ```
-show bgp ipv4 labeled-unicast
-show bgp ipv4 labeled-unicast 10.0.0.1/32      ! remote PE loopback carries a label
-show mpls forwarding
-show bgp vpnv4 unicast summary                 ! RR1 shows the multihop neighbor UP
-show bgp vpnv4 unicast                          ! on ASBR-A/B: EMPTY (proves not Option B)
-ping mpls ipv4 <remote-PE-loopback>/32
-traceroute mpls ipv4 <remote-PE-loopback>/32
+show bgp vpnv4 unicast vrf GREEN
+show bgp vpnv4 unicast neighbor 20.12.21.21 advertised-routes   ! NH-self + new label each Option B hop
+show route vrf GREEN <prefix>
+show bgp vpnv4 unicast vrf BLUE                                 ! R1/R20 leak only intended connecteds
 ```
 
----
+### Task 2.3 — Multicast VPN: mVPN Profile 3 (BGP C-multicast, mLDP P2MP core)
 
-### Task 2.3 — QoS Ingress Marking + Core EXP Treatment — SOLUTION
+**Design:** PIM-free core via mLDP P2MP LSPs for Default/Data MDT; BGP MVPN SAFI for auto-discovery and C-multicast (Type 6/7) joins. Garnet PEs R14/R15/R16. Data-MDT range with switchover threshold.
 
-**PE ingress (CE-facing): classify by DSCP, re-mark MPLS EXP at imposition (EF→EXP5, AF41→EXP3, default→EXP0). Core: classify ONLY on EXP, LLQ EXP5 / min-BW EXP3 / WRED EXP0.**
+#### R14 (and R15, R16) — Profile 3 — IOS-XR
 
-**PE1-PE4 ingress policy (representative PE1):**
+```
+mpls ldp
+ mldp
+!
+multicast-routing
+ vrf GREEN
+  address-family ipv4
+   mdt source Loopback0
+   mdt default mldp p2mp              ! Default MDT = mLDP P2MP tree (no PIM core)
+   mdt data mldp 100 threshold 1000   ! Data MDT pool, switchover at 1000 kbps
+   bgp auto-discovery mldp            ! BGP MVPN auto-discovery
+   rate-per-route
+ !
+!
+router bgp 65200
+ address-family ipv4 mvpn
+ !
+ neighbor 150.2.19.19
+  address-family ipv4 mvpn
+ !
+ vrf GREEN
+  address-family ipv4 mvpn
+   bgp c-multicast-routing            ! C-joins in BGP Type 6/7, not PIM across core
+!
+router pim
+ vrf GREEN
+  address-family ipv4
+   ! PIM runs ONLY toward CEs, never in the core
+   interface GigabitEthernet0/0/0/0   ! PE-CE facing
+    enable
+```
+
+**Why Profile 3:** Default/Data MDTs are mLDP P2MP LSPs so there is no PIM adjacency in the provider core; customer (*,G)/(S,G) state is carried PE→PE as BGP MVPN Type 6/7 routes. High-bandwidth sources crossing the data-MDT threshold spawn a new mLDP P2MP data tree and the receiver PE issues a BGP Type 7 join.
+
+**Verify:**
+```
+show mpls mldp database
+show mvpn vrf GREEN pe
+show bgp ipv4 mvpn
+show pim vrf GREEN topology           ! NO PIM neighbors in core; PIM only to CE
+show mvpn vrf GREEN database
+```
+
+### Task 2.4 — QoS: ingress marking + core MPLS EXP (traffic-class) treatment (uniform mode, no shaper)
+
+**Design:** R14 ingress classifies Green CE traffic (DSCP) into 3 classes and sets MPLS EXP on imposition (voice→5, biz→3, BE→0), uniform mode. Core (R13/R11/R19) matches EXP and applies PHB. Egress PE R16 maps EXP back to DSCP. No shaping anywhere.
+
+#### R14 — ingress marking (customer-facing) — IOS-XR
+
 ```
 class-map match-any VOICE
  match dscp ef
- end-class-map
 !
-class-map match-any VIDEO
- match dscp af41
- end-class-map
+class-map match-any BIZ
+ match dscp af31 af32
 !
-policy-map PE-INGRESS-MARK
+policy-map CE-INGRESS-MARK
  class VOICE
   set mpls experimental imposition 5
- !
- class VIDEO
+  set traffic-class 5
+ class BIZ
   set mpls experimental imposition 3
- !
+  set traffic-class 3
  class class-default
   set mpls experimental imposition 0
- end-policy-map
+  set traffic-class 0
 !
-interface Gi0/0/0/5                       ! CE-facing
- service-policy input PE-INGRESS-MARK
+interface GigabitEthernet0/0/0/0            ! Green CE ingress
+ service-policy input CE-INGRESS-MARK
+!
+! Uniform mode is the IOS-XR default for MPLS EXP; make explicit:
+mpls traffic-eng
+!  (DiffServ tunneling: uniform — EXP stays coupled to customer QoS through the core)
 ```
-> `set mpls experimental imposition` marks the EXP of the label(s) pushed at this ingress PE — exactly "re-mark the EXP of the imposed label stack."
 
-**Core policy on P1-P3 + RR1-RR2 core-facing interfaces — classify on EXP only:**
+#### R13 / R11 / R19 — core per-EXP treatment (egress on core links) — IOS-XR
+
 ```
-class-map match-any CORE-VOICE
+class-map match-any EXP5
  match mpls experimental topmost 5
- end-class-map
 !
-class-map match-any CORE-VIDEO
+class-map match-any EXP3
  match mpls experimental topmost 3
- end-class-map
 !
-policy-map CORE-EXP-OUT
- class CORE-VOICE
-  priority level 1
-  police rate percent 30
- !
- class CORE-VIDEO
-  bandwidth percent 40
- !
+policy-map CORE-EXP-PHB
+ class EXP5
+  priority level 1                 ! LLQ for voice
+  police rate percent 20
+ class EXP3
+  bandwidth percent 40             ! guaranteed for business
  class class-default
-  random-detect default
- end-policy-map
+  bandwidth percent 30
+  random-detect default            ! WRED on best-effort
 !
-interface Gi0/0/0/2                       ! core-facing
- service-policy output CORE-EXP-OUT
+interface GigabitEthernet0/0/0/1   ! core-facing egress
+ service-policy output CORE-EXP-PHB
 ```
 
-**Explanation:**
-- Core class-maps match **only** `mpls experimental topmost` — no `match dscp` anywhere in the core, satisfying the "core treats EXP only, never inspects IP DSCP" constraint.
-- `priority level 1` = LLQ for voice (EXP5); `bandwidth percent 40` = guaranteed minimum for video (EXP3); `random-detect` = WRED on best-effort (EXP0).
-- EXP is set once at ingress imposition and read at every core hop — the IP header's DSCP is never re-examined inside the MPLS core (the label hides it).
+#### R16 — egress PE, EXP→DSCP back to CE (uniform) — IOS-XR
+
+```
+policy-map EGRESS-EXP-TO-DSCP
+ class EXP5
+  set dscp ef
+ class EXP3
+  set dscp af31
+ class class-default
+  set dscp default
+!
+interface GigabitEthernet0/0/0/1   ! toward Green CE R18
+ service-policy output EGRESS-EXP-TO-DSCP
+```
+
+**Why uniform mode:** the EXP marking stays coupled to the customer's QoS end-to-end — a re-marking in the core propagates back out, keeping consistent PHB. No shaper is used; the design is edge-marking + core per-EXP queuing.
 
 **Verify:**
 ```
-show policy-map interface Gi0/0/0/5 input          ! PE ingress — marking counters per class
-show policy-map interface Gi0/0/0/2 output         ! core — EXP-based queue counters
-show mpls forwarding detail
-show qos interface Gi0/0/0/2 output
+show policy-map interface GigabitEthernet0/0/0/0 input      ! marking/EXP-set counters (R14)
+show policy-map interface GigabitEthernet0/0/0/1 output     ! per-EXP class + queue stats (core)
+show mpls forwarding                                        ! EXP preserved in label stack
 ```
-Send EF + AF41 from CE1; confirm EXP5/EXP3 counters increment at PE1 ingress and the matching core queues increment at P1/P2.
 
----
+### IOS-XE CE reference (Green customers)
 
-### Task 2.4 — L3VPN redistribute connected (not network) — SOLUTION
+#### R17 (IOS-XE, OSPF PE-CE to R15)
 
-**VRF CUST-A on PE1 and PE3; inject CE-facing connected subnet via `redistribute connected` + filtering route-policy.**
-
-**PE1:**
 ```
-vrf CUST-A
- address-family ipv4 unicast
-  import route-target
-   65000:100
-  export route-target
-   65000:100
+interface GigabitEthernet0/0
+ ip address 192.168.6.17 255.255.255.0
 !
-route-policy CONN-FILTER-CUST-A
- if destination in (192.168.1.0/24 le 32) then
-  pass
- else
-  drop
- endif
-end-policy
+router ospf 1
+ network 192.168.6.0 0.0.0.255 area 0
+ network 150.17.17.17 0.0.0.0 area 0
+```
+
+#### R18 (IOS-XE, eBGP 65910 PE-CE to R16, dual-stack for 6VPE)
+
+```
+interface GigabitEthernet0/0
+ ip address 192.168.7.18 255.255.255.0
+ ipv6 address 2001:DB8:7::18/64
 !
-interface Gi0/0/0/5
- vrf CUST-A
- ipv4 address 192.168.1.1 255.255.255.252
-!
-router bgp 65000
- vrf CUST-A
-  rd 65000:1
-  address-family ipv4 unicast
-   redistribute connected route-policy CONN-FILTER-CUST-A
-```
-
-**PE3:**
-```
-vrf CUST-A
- address-family ipv4 unicast
-  import route-target
-   65000:100
-  export route-target
-   65000:100
-!
-route-policy CONN-FILTER-CUST-A
- if destination in (192.168.3.0/24 le 32) then
-  pass
- else
-  drop
- endif
-end-policy
-!
-interface Gi0/0/0/5
- vrf CUST-A
- ipv4 address 192.168.3.1 255.255.255.252
-!
-router bgp 65000
- vrf CUST-A
-  rd 65000:3
-  address-family ipv4 unicast
-   redistribute connected route-policy CONN-FILTER-CUST-A
-```
-
-**Explanation / operational risk:**
-- `redistribute connected` auto-injects **every** connected interface placed in the VRF into VPNv4 — including a management or transit subnet you did not intend to advertise. The `route-policy CONN-FILTER-CUST-A` is therefore mandatory discipline: it explicitly permits only the intended CE subnet and drops everything else.
-- Contrast with `network` statements, which advertise only the exact prefixes you list — adding a new VRF interface does nothing until you add a matching `network` line. With `redistribute connected`, a newly-added VRF interface is advertised **immediately and silently** unless the route-policy is updated to exclude it. Document this as the key risk: the failure mode is accidental over-advertisement, not under-advertisement.
-
-**Verify:**
-```
-show bgp vrf CUST-A ipv4 unicast
-show route vrf CUST-A
-show route-policy CONN-FILTER-CUST-A
-show bgp vpnv4 unicast rd 65000:1            ! on RR — connected subnet present with RT 65000:100
-```
-On remote PE: `show route vrf CUST-A 192.168.1.0/30` should resolve via VPNv4 with the correct RT.
-
----
-## Section 3 — SoO and Troubleshooting MCQs
-
-### Task 3.1 — Site-of-Origin Scenario — SOLUTION
-
-**Scenario:** Nimbus multihomed PE2+PE4, SoO `65000:4002` (PE2 site) / `65000:4004` (PE4 site), plus an OSPF sham-link backdoor between the two VRF sites.
-
-**PE2 — VRF NIMBUS, SoO on the CE-facing BGP neighbor (or OSPF redistribution point):**
-```
-vrf NIMBUS
- address-family ipv4 unicast
-  import route-target
-   65000:400
-  export route-target
-   65000:400
-!
-router bgp 65000
- vrf NIMBUS
-  rd 65000:2
-  address-family ipv4 unicast
-   redistribute connected
-  !
-  neighbor 192.168.21.2                 ! CE at PE2's Nimbus site
-   remote-as 65521
-   address-family ipv4 unicast
-    site-of-origin 65000:4002
-```
-
-**PE4 — VRF NIMBUS, SoO `65000:4004`:**
-```
-vrf NIMBUS
- address-family ipv4 unicast
-  import route-target
-   65000:400
-  export route-target
-   65000:400
-!
-router bgp 65000
- vrf NIMBUS
-  rd 65000:4
-  address-family ipv4 unicast
-   redistribute connected
-  !
-  neighbor 192.168.41.2                 ! CE at PE4's Nimbus site
-   remote-as 65521
-   address-family ipv4 unicast
-    site-of-origin 65000:4004
-```
-
-**Loop-prevention effect:** a route learned from the PE2 CE neighbor is tagged with SoO `65000:4002` as it enters BGP. BGP's SoO rule (RFC 4364 §12) automatically suppresses re-advertisement of any route carrying a given SoO value back out to **any** eBGP neighbor in the VRF that is itself configured with that same SoO value — so PE2 will never hand Nimbus-site-2's own routes back to the PE2 CE, while PE4 (different SoO) still receives and advertises them normally to its own Nimbus CE.
-
-**OSPF PE-CE with sham-link (backdoor-link scenario):**
-```
-! VRF loopback used as sham-link endpoint (reachable only via BGP/MPLS core, NOT via the OSPF backdoor)
-interface Loopback100
- vrf NIMBUS
- ipv4 address 10.100.2.2 255.255.255.255
-!
-router ospf 100 vrf NIMBUS
- area 0
-  interface Loopback100
-   passive
-  !
-  sham-link 10.100.2.2 10.100.4.4
-```
-On PE4:
-```
-interface Loopback100
- vrf NIMBUS
- ipv4 address 10.100.4.4 255.255.255.255
-!
-router ospf 100 vrf NIMBUS
- area 0
-  interface Loopback100
-   passive
-  !
-  sham-link 10.100.4.4 10.100.2.2
-```
-> The sham-link endpoint loopbacks (10.100.2.2/10.100.4.4) must be advertised into **BGP VPNv4** (via `redistribute connected` under the VRF BGP AF, already in place from the base config above) and specifically **excluded from OSPF** so they are reachable only across the MPLS/BGP core — this is why the sham-link "works" at all: without it, OSPF would prefer the physical backdoor link between the two Nimbus CE sites as an intra-area path (lower cost than the "external" BGP-learned VPN route), causing the PE-CE OSPF routes to never traverse the VPN backbone as intended. The sham-link forces the two sites to see each other as a single OSPF area over the MPLS core, matching the BGP-based VPN path's preference.
-
-**Loop validation:** if the backdoor link between the two Nimbus CE sites and both PE uplinks are all up simultaneously, no loop occurs because:
-1. SoO prevents PE2/PE4 from re-advertising a site's own BGP-learned routes back to that same site.
-2. The OSPF sham-link makes OSPF itself treat the VPN backbone as an intra-area (not external) path, so OSPF's own loop-prevention (standard SPF, no redistribution loop) applies cleanly — the sham-link exists precisely to avoid the backdoor link being preferred over (and conflicting with) the VPN path, not to create a second redundant forwarding path that could loop.
-
-**Verify:**
-```
-show bgp vrf NIMBUS ipv4 unicast 192.168.21.0/30 detail   ! confirm extcommunity SoO:65000:4002
-show ospf vrf NIMBUS sham-links
-show route vrf NIMBUS
-```
-
----
-
-### Task 3.2 — Troubleshooting MCQ Answers
-
-**1. (G.8032) RPL owner misconfigured on the wrong node — first symptom + confirm command:**
-First symptom: a **traffic black hole or sub-optimal forwarding path** on the ring under normal (no-fault) conditions — specifically, the RPL (the link meant to stay blocked) does NOT block, so you either get a bridging loop (if two nodes both think they're *not* the owner and both unblock) or the wrong link ends up permanently blocked instead of the intended RPL. You typically see this surface as unexpected MAC flapping / duplicate traffic on the ring, not a failure-triggered symptom, because it's visible even with no link fault present.
-Confirm command: `show ethernet ring g8032 detail` (or `show interfaces <if> ethernet ring`) — look at the `Node State` / `RPL Role` field per ring port to confirm which node/port is actually acting as RPL Owner vs RPL Neighbor vs normal ring port.
-
-**2. (G.8032) SF reported but ring doesn't switch — three root causes, in check order:**
-1. **R-APS messages are not actually being flooded/received by the other ring nodes** — check VLAN/control-VLAN membership for the R-APS channel (the ring's dedicated control VLAN) on every ring port; a misconfigured or missing R-APS VLAN means other nodes never learn about the SF.
-2. **The RPL owner/neighbor is not correctly configured or the ring-id/instance on this node doesn't match the rest of the ring** — a mismatched `ring-id` or sub-ring/major-ring instance means this node's R-APS state machine never transitions, so it never unblocks the RPL.
-3. **The port is not actually in forwarding-eligible G.8032 "ring port" role** (e.g., it's administratively excluded, or `wtr`/`guard timer` is still running from a prior event) — check the per-port ring-port role and current protection-state timers.
-
-**3. (G.8032) Reverting from Manual Switch (MS) — command + risk:**
-Command: `clear ethernet ring g8032 <ring-name>` (or the equivalent `no` form of the manual-switch command actually applied, e.g. removing the `manual-switch` CLI entry/triggering a `clear` on the ring instance) returns the ring to Idle state, re-evaluating RPL blocking normally.
-Risk of forgetting: the ring remains **stuck in Manual Switch state indefinitely** — meaning if a *real* fault later occurs elsewhere on the ring, the ring's protection switching logic may not react correctly (since it believes an administrative override is still active), potentially leaving traffic black-holed on both the originally-forced-away link state AND the new fault, rather than cleanly protection-switching.
-
-**4. (BGP NSR) Two most likely config gaps causing NSR to fail across RP failover:**
-1. **NSR not actually enabled/supported for that specific address-family or session** — on IOS-XR, NSR has AF-specific support boundaries (and requires both RPs to be in sync `ready` state before failover); if the session/AF combination isn't NSR-capable on this platform/release, the session falls back to a hard reset instead of being preserved.
-2. **The standby RP was not fully synchronized (BGP NSR "cold" / not-ready) at the moment of failover** — if the standby hadn't completed state replication (check `show bgp nsr` / sync status) when the active RP failed, there's no valid preserved session state to hand off, so the client PE sees a full session reset (`NBR_RESET`) instead of a seamless NSR switchover.
-
-**5. (BGP NSR) Log signature — NSR success vs GR fallback:**
-- **Successful NSR**: the BGP session on the RR shows **no `NBR_RESET` and no re-negotiation** — the TCP session and BGP FSM state are preserved across the RP switch; you'll see RP failover syslogs (`%HA-REDCON...`/RP switchover messages) but the peer's `show bgp neighbor` uptime does **not** reset, and no OPEN/UPDATE renegotiation occurs. The peer-side router sees zero impact.
-- **GR fallback**: the client PE logs `%BGP-5-NBR_RESET` or `%BGP-5-ADJCHANGE` (session down then re-established), BGP uptime resets, and if Graceful Restart was negotiated you'll additionally see GR-specific messages (stale-route hold timer start, `(Restart Timer Expired)` or `graceful restart capability` renegotiation in the OPEN exchange) as the session is fully torn down and rebuilt with stale-path preservation rather than a true in-place continuation.
-
-**6. (BGP NSR) show commands to confirm NSR (not GR) preserved the session:**
-```
-show bgp neighbor <peer> | include "NSR State|Up time"
-show bgp nsr
-```
-Specific proving field: `NSR State: In sync` / `NSR State: NSR Ready` on the neighbor AND an **unbroken/continuing `Up time`** that did not reset across the failover timestamp. If GR had been used instead, `Up time` would show a value starting from *after* the failover (session was torn down and rebuilt), and the neighbor detail would show GR capability/stale-timer fields rather than an NSR-sync indicator.
-
----
-## Section 4 — High Availability and Convergence
-
-### Task 4.1 — SRv6 FRR with Priority-Limit Critical — SOLUTION
-
-**Only prefixes tagged `critical` get a pre-computed TI-LFA backup; default-priority prefixes get none.**
-
-**Enable TI-LFA for SRv6 + priority-limit critical — P1, P2, P3, RR1, RR2 (representative P1):**
-```
-router isis CORE
- address-family ipv6 unicast
-  fast-reroute per-prefix
-  fast-reroute per-prefix priority-limit critical
-```
-
-**Tag PE1 and PE4 loopbacks as critical priority (configured on PE1/PE4 themselves, propagated via IS-IS prefix attribute):**
-```
-! PE1
-router isis CORE
- interface Loopback0
-  address-family ipv6 unicast
-   prefix-sid algorithm 0            ! (base SRv6 locator End SID already configured in Task 1.5)
-   fast-reroute per-prefix priority critical
-```
-```
-! PE4 — identical pattern
-router isis CORE
- interface Loopback0
-  address-family ipv6 unicast
-   fast-reroute per-prefix priority critical
-```
-PE2 and PE3's loopbacks are left at their IS-IS **default** priority (no `fast-reroute per-prefix priority` line at all) — they remain unprotected under this task's `priority-limit critical` policy on the L2 backbone routers.
-
-**Validation — shut the P1-P2 core link:**
-```
-interface Gi0/0/0/2
- shutdown
-```
-Expected: PE1/PE4 traffic (critical-tagged) is immediately protected via the pre-computed SRv6 TI-LFA repair SID installed in the FIB *before* the failure — sub-50ms, data-plane-only reroute. PE2/PE3 traffic (default priority, not protected under the `priority-limit critical` policy) has no pre-installed backup and experiences a full control-plane IS-IS reconvergence (SPF recompute + FIB update), which is materially slower.
-
-**Explanation:**
-- `priority-limit critical` tells the TI-LFA computation engine: "only spend CPU/FIB resources precomputing backup paths for prefixes marked critical; skip backup computation entirely for everything else." This is a deliberate resource/scale tradeoff — on a router with a very large prefix table (e.g., full Internet or large VPN table), computing per-prefix TI-LFA backups for every single prefix is expensive in both CPU during SPF and FIB memory for the extra backup next-hops. Restricting FRR computation to only the operationally critical prefixes (such as backbone infra loopbacks used for high-value inter-AS LSPs) conserves those resources while still protecting what matters most.
-
-**Verify:**
-```
-show isis fast-reroute 10.0.0.1/32 detail         ! PE1 — shows a pre-computed backup
-show isis fast-reroute 10.0.0.2/32 detail         ! PE2 — shows NO backup (unprotected, by design)
-show segment-routing srv6 sid detail
-show isis fast-reroute summary
-```
-
----
-
-### Task 4.2 — OSPF NSF MCQ — SOLUTION
-
-**Why NSF can't help when the CE doesn't support the helper role:**
-OSPF NSF/Graceful Restart is a **cooperative, two-sided** mechanism. The restarting router (the PE, undergoing RP switchover) sends a Grace-LSA announcing "I'm restarting, please keep our adjacency up and continue forwarding using stale routes for N seconds." This only works if the **neighbor** (the CE) recognizes the Grace-LSA and enters **GR Helper mode** — holding the adjacency and continuing to use the last-known-good LSDB/routes instead of immediately tearing down and reconverging. If the CE does not implement the Opaque-LSA-based Grace-LSA / Helper capability (RFC 3623 for OSPFv2 GR, or the Cisco NSF-aware equivalent), it simply has no mechanism to interpret the Grace-LSA — from the CE's perspective, the PE's control plane blip looks like a normal neighbor-down event (missed Hellos / dead-timer expiry), so the CE tears down the adjacency and runs a full SPF/reconverge exactly as it would for any other failure. The specific missing capability is **OSPF Graceful-Restart Helper mode support** (the ability to process a received Grace-LSA and suppress normal adjacency teardown during the grace period) — without it on the CE side, NSF on the PE is necessarily a one-sided no-op for that adjacency, because NSF has no unilateral way to prevent the neighbor from treating the event as a failure.
-
----
-
-## Section 5 — BGP Security
-
-### Task 5.1 — TCP-AO Concepts and Keychain Config — SOLUTION
-
-**1. (Design) MD5 weakness TCP-AO addresses:**
-Plain BGP MD5 (RFC 2385) relies on the MD5 hash algorithm alone, which has well-documented cryptographic weaknesses (collision attacks, and MD5's digest is now considered too weak for new designs). It also uses a **single static key per session with no formal rotation mechanism** — changing the password requires a coordinated, often session-disruptive change on both routers simultaneously. TCP-AO (RFC 5925) mandates support for stronger, modern MAC algorithms (HMAC-SHA-1-96 as a baseline, AES-128-CMAC-96, etc.), explicitly supports **multiple concurrent keys with defined lifetimes** for coordinated/hitless rollover, and also protects TCP segments more robustly (covering more of the TCP header/options, with explicit replay protection via sequence-number-derived traffic keys) — closing both the "weak algorithm" and "no safe rotation" gaps in classic MD5.
-
-**2. (Design) Why per-session MKT (SendID/RecvID) matters at scale:**
-A router with many BGP peers using a single shared MD5 password has an all-or-nothing blast radius: rotating the key means touching every peer relationship simultaneously (or tolerating a mismatch window causing session flaps), and a single compromised password compromises every session using it. TCP-AO's Master Key Tuple with independent `SendID`/`RecvID` per session lets each peer relationship have its **own** key identity and its own independent rotation schedule — you can roll Key ID 1→2 on the PE1-CE1 session without touching any other peer's keys at all, and a compromise of one peer's key doesn't expose any other peer's session. This is essential operationally once you have more than a handful of peers requiring independent, staggered key-rotation windows.
-
-**3/4. (Config concept) Keychain `BGP-KC-SEC` on PE1 with overlapping-lifetime keys, applied via TCP-AO (not legacy MD5 password):**
-```
-keychain BGP-KC-SEC
- key 1
-  key-string password 7 <encrypted-key-1>
-  cryptographic-algorithm HMAC-SHA1-96
-  send-lifetime 00:00:00 january 1 2026 00:00:00 february 1 2026
-  accept-lifetime 00:00:00 january 1 2026 00:00:00 february 1 2026
+router bgp 65910
+ bgp log-neighbor-changes
+ neighbor 192.168.7.16 remote-as 65200
+ neighbor 2001:DB8:7::16 remote-as 65200
  !
- key 2
-  key-string password 7 <encrypted-key-2>
-  cryptographic-algorithm AES-128-CMAC-96
-  send-lifetime 00:00:00 january 25 2026 00:00:00 march 1 2026
-  accept-lifetime 00:00:00 january 25 2026 00:00:00 march 1 2026
+ address-family ipv4
+  network 150.18.18.18 mask 255.255.255.255
+  neighbor 192.168.7.16 activate
+ !
+ address-family ipv6
+  network 2001:DB8:18::18/128
+  neighbor 2001:DB8:7::16 activate
+```
+
+---
+
+## Section 3 — Access Connectivity (25%)
+
+### Task 3.1 — Site of Origin (SoO) on Blue CE R25 (multi-homed to R14, R21, R23)
+
+**Design:** Blue R25 multi-homes into R14 (65200, 192.168.5.0/24), R21 (65300, 192.168.10.0/24), R23 (65300, 192.168.12.0/24). SoO `65025:2500` applied inbound on all three PEs; outbound policy rejects routes already carrying it; SoO must survive Option B re-origination (Task 2.2).
+
+#### R14 — SoO inbound + outbound filter on Blue PE-CE — IOS-XR
+
+```
+extcommunity-set soo SOO-R25
+ 65025:2500
+end-set
 !
-router bgp 65000
- neighbor <CE1-ip>
-  remote-as 65511
-  ao BGP-KC-SEC
+route-policy BLUE-IN-SOO
+  set extcommunity soo SOO-R25
+  pass
+end-policy
+!
+route-policy BLUE-OUT-SOO
+  if extcommunity soo matches-any SOO-R25 then
+    drop                      ! never advertise R25's own routes back to R25
+  else
+    pass
+  endif
+end-policy
+!
+router bgp 65200
+ vrf BLUE
+  rd 65200:25
+  neighbor 192.168.5.25
+   remote-as 65025
+   address-family ipv4 unicast
+    route-policy BLUE-IN-SOO in
+    route-policy BLUE-OUT-SOO out
+    as-override
 ```
-> `ao <keychain-name>` under the neighbor is IOS-XR's TCP-AO application command (distinct from the legacy `password encrypted ...` MD5 syntax). The overlap window (Jan 25 – Feb 1, 2026) is where **both** Key ID 1 and Key ID 2 are simultaneously valid for send/accept.
 
-**5. Validation of hitless rollover:**
-Advance the lab clock (or use short demonstration lifetimes, e.g., minutes instead of weeks) across the Key-1→Key-2 boundary and confirm via `show bgp neighbor <CE1-ip>` that the `Up time` counter does **not** reset and no `%BGP-5-ADJCHANGE`/`NBR_RESET` is logged during the transition — the session continues uninterrupted because both routers accept either key during the overlap, so whichever key each side happens to be using to send at the exact rollover instant is still a valid key for the other side to verify.
+> R21 (neighbor 192.168.10.25) and R23 (neighbor 192.168.12.25) use the **identical** SoO `65025:2500` inbound and the same outbound drop. Same SoO value = same site, so any PE recognizes an R25-originated route and refuses to loop it back.
 
-**6. (Design) Why overlapping lifetimes are mandatory, and the clock-sync risk:**
-TCP-AO key lifetimes configured in **absolute** time require both routers to independently decide, from their own local clock, exactly when a key becomes valid/invalid for sending and receiving. If lifetimes were a hard single-timestamp cutover (Key 1 expires at exactly T, Key 2 starts at exactly T) with zero overlap, any clock skew between the two routers — even a few seconds — creates a window where one router is already sending with Key 2 while the other hasn't yet activated Key 2 for *accept* (or vice versa), causing authentication failures and a session drop. The overlap window absorbs realistic clock drift: as long as both routers' clocks are within the overlap duration of each other, there is always at least one key both sides agree is simultaneously valid. If NTP is not synchronized and the clock skew exceeds the configured overlap window, the keys' valid windows may not actually intersect in real wall-clock time on both routers, defeating the purpose of the overlap and potentially causing exactly the hard-cutover authentication failure/session flap the overlap was meant to prevent.
+#### R12 / R21 ASBR — ensure SoO survives Option B — IOS-XR
+
+```
+! On the Option B inter-AS vpnv4 policy, do NOT strip extended communities.
+route-policy PASS
+  pass                        ! passes extcommunities incl. SoO; verify not deleted
+end-policy
+!
+! If a policy elsewhere does `delete extcommunity all`, exempt SoO:
+route-policy KEEP-SOO
+  delete extcommunity rt all
+  pass                        ! deletes RT only, keeps SoO 65025:2500
+end-policy
+```
+
+**Why:** SoO is a per-site stamp. Applied inbound at every PE facing R25, it marks all routes learned from that site; the outbound filter drops any route still carrying the stamp before re-advertising toward R25 — preventing the multi-homing loop. Across Option B, the ASBR must not delete the SoO extended-community during re-origination or the loop protection breaks at the AS boundary.
 
 **Verify:**
 ```
-show bgp neighbors <CE1-ip>
-show keychain BGP-KC-SEC
-show bgp neighbors <CE1-ip> detail | include Auth
+show bgp vpnv4 unicast vrf BLUE 150.25.25.25/32 detail    ! SoO 65025:2500 present + used as filter
+show bgp vpnv4 unicast vrf BLUE                           ! on R25-facing sessions: own-site routes absent
+! after R12<->R21 Option B hop: confirm SoO still attached
 ```
 
----
+#### R25 (IOS-XE CE) — three-way multi-home
 
-## Section 6 — Automation: NSO, Ansible, Telemetry
-
-### Task 6.1 — NSO Out-of-Sync Device — SOLUTION
-
-**Simulate drift on PE2:**
 ```
-! Directly on PE2 CLI, bypassing NSO:
-interface Loopback0
- description EMERGENCY-FIX-oncall-$(date)
-```
-
-**Check-sync + diff from NSO CLI:**
-```
-devices device PE2 check-sync
-devices device PE2 compare-config
-```
-`check-sync` reports `out-of-sync`; `compare-config` shows a diff limited to the `description` line under `interface Loopback0` that NSO's CDB doesn't know about.
-
-**Decision — `sync-from` vs `sync-to`:**
-Choose **`sync-from`** (pull the live device state into CDB), **not** `sync-to`. Justification: the drift was an **authorized emergency CLI change** made by an on-call engineer during a live incident — discarding it with `sync-to` would silently revert a deliberate, approved operational fix, which is both disruptive and a trust-breaking surprise for the on-call engineer. `sync-from` accepts the reality of the device as the new source of truth for anything NSO wasn't already managing as a service-owned leaf, which is the correct behavior for an authorized out-of-band change.
-```
-devices device PE2 sync-from
+interface GigabitEthernet0/0
+ ip address 192.168.5.25 255.255.255.0        ! to R14
+interface GigabitEthernet0/1
+ ip address 192.168.10.25 255.255.255.0       ! to R21
+interface GigabitEthernet0/2
+ ip address 192.168.12.25 255.255.255.0       ! to R23
+!
+router bgp 65025
+ network 150.25.25.25 mask 255.255.255.255
+ neighbor 192.168.5.14 remote-as 65200
+ neighbor 192.168.10.21 remote-as 65300
+ neighbor 192.168.12.23 remote-as 65300
 ```
 
-**Re-deploy the `CUST-A` L3VPN service with reconcile:**
-```
-services l3vpn CUST-A re-deploy reconcile
-```
-`re-deploy reconcile` re-applies the service template's intended configuration for everything the service **does** own (VRF name, RD, RT, redistribute-connected route-policy from Task 2.4) while explicitly reconciling (preserving, not reverting) configuration that exists on the device within the service's owned tree but that the service template itself didn't put there and doesn't manage line-by-line — in this case, the loopback description is outside the L3VPN service's owned configuration tree entirely (the service only touches the VRF/BGP/interface-VRF-binding config, not the loopback0 description), so it is untouched by either a plain `re-deploy` or a `re-deploy reconcile`. What `reconcile` specifically protects against is the service "fighting" extra device-level config *inside its own managed objects* that it didn't originate — ensuring the VRF/RT/RD still match the template exactly without erasing adjacent out-of-band changes elsewhere on the device.
+### Task 3.2 — 6VPE for the Green customer IPv6
 
-**Explanation — plain re-deploy vs re-deploy reconcile:**
-A plain `re-deploy` recalculates and pushes exactly what the service template says should exist, and can be more aggressive about removing device configuration that NSO associates with the service but no longer matches the template (potentially clobbering an out-of-band tweak that happened to land inside the service's owned config tree). `re-deploy reconcile` instructs NSO to first absorb (reconcile) any existing device configuration found within the service's owned tree into FASTMAP's view of "already applied," rather than treating it purely as drift to be purged — so legitimate out-of-band changes *inside the service's managed scope* survive the re-deploy instead of being silently reverted, while the service's core managed attributes (VRF/RT/RD here) are still verified/enforced to match the template.
+**Design:** Add IPv6 to Green VRF on Garnet PEs. R16↔R18 eBGP adds IPv6 AF; R15↔R17 adds OSPFv3. VPNv6 AF to RR R19 and across Option B. Over SRv6 (Emerald) rides End.DT6.
+
+#### R16 — Green VPNv6 (6VPE) with eBGP PE-CE IPv6 — IOS-XR
+
+```
+vrf GREEN
+ address-family ipv6 unicast
+  import route-target 65200:100
+  export route-target 65200:100
+!
+router bgp 65200
+ address-family vpnv6 unicast
+ !
+ neighbor 150.2.19.19
+  address-family vpnv6 unicast
+ !
+ vrf GREEN
+  address-family ipv6 unicast
+   redistribute connected
+  neighbor 2001:db8:7::18
+   remote-as 65910
+   address-family ipv6 unicast
+    route-policy PASS in
+    route-policy PASS out
+    as-override
+```
+
+#### R15 — Green IPv6 PE-CE via OSPFv3 to R17 — IOS-XR
+
+```
+router ospfv3 GREEN-V6
+ vrf GREEN
+  address-family ipv6 unicast
+  area 0
+   interface GigabitEthernet0/0/0/0
+ !
+!
+router bgp 65200
+ vrf GREEN
+  address-family ipv6 unicast
+   redistribute ospfv3 GREEN-V6
+```
+
+**Why 6VPE:** IPv6 VPN prefixes are carried as VPNv6 NLRI over the same IPv4/MPLS or SR core; the per-VRF label (or SRv6 End.DT6 SID on Emerald) decapsulates and does an IPv6 VRF lookup at the egress PE. Over Option B the ASBR re-originates VPNv6 with next-hop-self the same way as VPNv4.
 
 **Verify:**
 ```
-devices device PE2 check-sync
-devices device PE2 compare-config
-services l3vpn CUST-A re-deploy reconcile
-show configuration services l3vpn CUST-A
+show bgp vpnv6 unicast vrf GREEN summary
+show bgp vpnv6 unicast vrf GREEN <prefix> detail    ! label or End.DT6 SID
+show route vrf GREEN ipv6 unicast
+ping vrf GREEN 2001:db8:18::18
+```
+
+### Task 3.3 — Troubleshooting MCQs: EVPN-VPWS ESI/DF, multi-homing mode
+
+**MCQ 1 — duplicate frames to dual-homed CE.**
+**Answer: (b)** — the ESI is **type-0 (all-zero)**, so DF election never ran. A single-active service needs a non-zero ESI (type-1/3) for the PEs to run DF election and block the non-DF; with ESI 0 both PEs forward, producing duplicates. (a) a mismatched non-zero ESI would break the service differently; (c)/(d) EVI/RT mismatch would prevent the service coming up at all, not duplicate.
+Confirm with: `show evpn ethernet-segment detail` (ESI value + DF/non-DF role).
+
+**MCQ 2 — is EVPN all-active valid for three-way multi-homed Blue R25?**
+**Answer: No — loop prevention must be at L3 via SoO (Task 3.1).** EVPN ESI multi-homing is a **single-L2-broadcast-domain / single-administrative-core** construct: the DF election and split-horizon rely on all participating PEs sharing one EVPN control plane and ES. R25 is an **L3VPN CE multi-homed across three separate ASes**, so there is no common Ethernet segment and no shared EVPN domain — ESI multi-homing cannot apply. SoO is the correct tool because it is an L3/BGP site stamp that works across ASes (and survives Option B).
+Prove L3 loop prevented with: `show bgp vpnv4 unicast vrf BLUE` on R25-facing PEs (R25's own routes absent on the outbound side).
+
+---
+
+## Section 4 — High Availability (10%)
+
+### Task 4.1 — MPLS-TE (RSVP-TE) in AS 65200 with OSPF TE extensions + FRR bypass
+
+**Design:** Enable MPLS-TE globally + per-core-interface in Garnet, OSPF TE opaque LSAs (Type-10), RSVP bandwidth reservations. Primary tunnel R14→R16 with explicit ERO + dynamic fallback, autoroute announce. FRR link protection via bypass tunnel for sub-50ms repair.
+
+#### R14 (headend) — IOS-XR
+
+```
+mpls traffic-eng
+ interface GigabitEthernet0/0/0/1       ! core-facing (R13)
+!
+rsvp
+ interface GigabitEthernet0/0/0/1
+  bandwidth 500000                      ! kbps reservable
+!
+router ospf GARNET
+ area 0
+  mpls traffic-eng
+ mpls traffic-eng router-id Loopback0
+!
+explicit-path name R14-TO-R16
+ index 10 next-address strict ipv4 unicast 20.13.14.13   ! via R13
+ index 20 next-address strict ipv4 unicast 20.13.16.16   ! to R16
+!
+interface tunnel-te0
+ ipv4 unnumbered Loopback0
+ autoroute announce
+ destination 150.2.16.16
+ path-option 1 explicit name R14-TO-R16
+ path-option 2 dynamic
+ signalled-bandwidth 200000
+ fast-reroute                            ! request node/link protection
+!
+```
+
+#### R13 (protecting node) — bypass tunnel for FRR — IOS-XR
+
+```
+mpls traffic-eng
+ interface GigabitEthernet0/0/0/0        ! protected link toward R16
+!
+rsvp
+ interface GigabitEthernet0/0/0/0
+  bandwidth 500000
+!
+interface tunnel-te100
+ ipv4 unnumbered Loopback0
+ destination 150.2.16.16
+ path-option 1 explicit name BYPASS-R13-R16
+!
+explicit-path name BYPASS-R13-R16
+ index 10 next-address strict ipv4 unicast 20.11.13.11   ! R13->R11
+ index 20 next-address strict ipv4 unicast 20.11.15.15   ! R11->R15 ... to R16 avoiding protected link
+!
+mpls traffic-eng
+ interface GigabitEthernet0/0/0/0
+  backup-path tunnel-te100               ! bind bypass to the protected interface
+```
+
+**Why:** OSPF floods TE link attributes as Type-10 opaque LSAs, populating the TE database the headend CSPF uses to honor the ERO + bandwidth. `fast-reroute` on the primary plus `backup-path` on the protecting node pre-programs a bypass so a protected-link failure triggers local repair in <50ms while the headend re-optimizes.
+
+**Verify:**
+```
+show mpls traffic-eng tunnels
+show mpls traffic-eng topology            ! OSPF-sourced TE links present
+show rsvp session
+show mpls traffic-eng fast-reroute database   ! protected + bypass READY
+```
+
+### Task 4.2 — BFD for IS-IS (not BGP)
+
+**Design:** BFD on IS-IS core interfaces of Gold (R20–R23,R30) and Emerald where applicable. Interval 150ms ×3. Ties data-plane failure to IS-IS adjacency teardown to accelerate SPF/TI-LFA. Independent of BGP.
+
+#### R20 (and all Gold core) — IOS-XR
+
+```
+router isis GOLD
+ interface GigabitEthernet0/0/0/0
+  bfd minimum-interval 150
+  bfd multiplier 3
+  bfd fast-detect ipv4
+  point-to-point
+  address-family ipv4 unicast
+   fast-reroute per-prefix ti-lfa
+ !
+ interface GigabitEthernet0/0/0/1
+  bfd minimum-interval 150
+  bfd multiplier 3
+  bfd fast-detect ipv4
+  point-to-point
+```
+
+**Why:** without BFD, IS-IS waits the hold-time (seconds) to notice a dead neighbor on a link that stays "up" (e.g., through an intermediate L2 device). BFD detects loss in ~450ms and tears the adjacency down immediately, so SPF runs and the pre-computed TI-LFA backup (Task 1.3) covers the microsecond gap. The objective here is IGP convergence; BGP is not the BFD client.
+
+**Verify:**
+```
+show bfd session                              ! client includes ISIS
+show isis interface GigabitEthernet0/0/0/0 | include BFD
+show isis neighbors detail
+show logging | include ADJCHANGE|BFD          ! timestamped teardown around induced failure
+```
+
+### Task 4.3 — OSPF NSF / Graceful-Restart troubleshooting MCQ
+
+**MCQ — R15 RP restart causes a brief outage despite NSF/GR configured.**
+**Answer: (a)** — R15 has NSF/GR enabled but neighbors **R11 and R19 are not graceful-restart helpers**, so instead of holding R15's LSAs for the grace period they age them on the normal dead-interval and reconverge, causing the blip. GR requires the *neighbors* to act as helpers (extend the restarting router's LSA lifetime and keep forwarding) for a hitless restart. (b) NSF doesn't require BFD — in fact BFD would *defeat* NSF by tearing the adjacency immediately; (c) NSF works for OSPFv2 and v3; (d) possible in theory but the restart here is planned/short.
+
+Confirm a neighbor is a helper: `show ospf neighbor detail` (look for the GR/helper state) and `show ospf` (NSF capability).
+Fix: enable GR helper on R11/R19:
+```
+router ospf GARNET
+ nsf ietf                 ! IOS-XR: nsr / nsf; helper mode on by default when peer signals GR
+ ! ensure not disabled:  no capability graceful-restart-helper  (must be ABSENT)
+```
+**RSVP-TE interaction (Task 4.1):** during the restart, RSVP uses its own state-recovery (graceful restart / hello) to keep the TE tunnels and FRR bypass up — confirm the tunnels did not re-signal (`show mpls traffic-eng tunnels` stable across the restart).
+
+---
+
+## Section 5 — Security (10%)
+
+### Task 5.1 — Management plane protection + IS-IS keychain (completes Task 1.1)
+
+**Design:** MPP inband on R1,R6,R12,R14,R20 permitting SSH+SNMP only from 10.255.0.0/24, explicitly denying Telnet/XML/TFTP. Complete `ISIS-KEY-L4` HMAC-MD5 with infinite lifetimes, applied for hello+LSP at both IS-IS levels on Emerald core.
+
+#### R14 (and R1,R6,R12,R20) — MPP inband — IOS-XR
+
+```
+ipv4 access-list MGMT-OK
+ 10 permit tcp 10.255.0.0 0.0.0.255 any eq 22       ! SSH
+ 20 permit udp 10.255.0.0 0.0.0.255 any eq snmp     ! SNMP
+!
+control-plane
+ management-plane
+  inband
+   interface all
+    allow SSH peer
+     address ipv4 10.255.0.0/24
+    allow SNMP peer
+     address ipv4 10.255.0.0/24
+    ! Telnet, XML (NETCONF/XML agent), TFTP are NOT allowed = denied.
+    ! Explicit deny posture: only SSH/SNMP from mgmt subnet are permitted.
+ !
+!
+```
+
+> MPP inband only governs for-us (management) traffic on data interfaces; transit/data-plane forwarding is unaffected. Omitting a protocol denies it; here Telnet/XML/TFTP are intentionally not listed.
+
+#### Emerald core (R1–R8) — complete keychain `ISIS-KEY-L4` — IOS-XR
+
+```
+key chain ISIS-KEY-L4
+ key 1
+  accept-lifetime 00:00:00 january 01 2024 infinite
+  send-lifetime   00:00:00 january 01 2024 infinite
+  key-string Cciesp#Lab4Key
+  cryptographic-algorithm HMAC-MD5
+!
+router isis EMERALD
+ lsp-password keychain ISIS-KEY-L4 level 1
+ lsp-password keychain ISIS-KEY-L4 level 2
+ interface GigabitEthernet0/0/0/0
+  hello-password keychain ISIS-KEY-L4          ! both levels (one keychain covers L1+L2)
+```
+
+**Design decision:** one keychain `ISIS-KEY-L4` authenticates both levels here (simpler, single rollover point). If per-level isolation were required you would build `ISIS-KEY-L4-L1` / `-L2` and apply `lsp-password keychain ... level 1|2` with distinct keys — document the choice.
+
+**Verify:**
+```
+show control-plane-protection management inband counters
+! from inside 10.255.0.0/24: ssh works; from outside: telnet fails
+show key chain ISIS-KEY-L4
+show isis interface detail                     ! HMAC-MD5 per level
+show isis adjacency detail
+```
+
+### Task 5.2 — BGP Flowspec, TCP-AO on eBGP, RSVP authentication
+
+#### 5.2.1 — BGP Flowspec (R19 controller) — IOS-XR
+
+```
+flowspec
+ address-family ipv4
+  service-policy type pbr FS-DDOS
+!
+class-map type traffic match-all FS-MATCH
+ match destination-address ipv4 150.18.18.18 255.255.255.255
+ match protocol udp
+!
+policy-map type pbr FS-DDOS
+ class type traffic FS-MATCH
+  police rate 1 mbps                 ! rate-limit action
+  redirect ipv4 nexthop route-target 65200:999   ! redirect-to-VRF action
+ class type traffic class-default
+!
+router bgp 65200
+ address-family ipv4 flowspec
+ !
+ neighbor 150.2.14.14
+  address-family ipv4 flowspec       ! advertise rule to R14/R15/R16
+```
+
+> **Dataplane limitation note:** IOS-XRv 9000 may advertise the Flowspec NLRI in the control plane but **not program the drop/rate-limit/redirect in the data plane**. Document control-plane state only; do not claim dataplane enforcement.
+> ```
+> show bgp ipv4 flowspec             ! rule present in BGP
+> show flowspec afi-all              ! installed rule (or note: not programmed in XRv)
+> ```
+
+#### 5.2.2 — TCP-AO on inter-AS eBGP (R12↔R21) — IOS-XR
+
+```
+key chain BGP-AO
+ key 1
+  key-string Cciesp#AoKey1
+  cryptographic-algorithm HMAC-SHA1-96
+  accept-lifetime 00:00:00 january 01 2024 infinite
+  send-lifetime   00:00:00 january 01 2024 infinite
+!
+router bgp 65200
+ neighbor 20.12.21.21
+  remote-as 65300
+  ao BGP-AO include-tcp-options enable
+```
+
+**Why TCP-AO vs MD5:** TCP-AO (RFC 5925) supports a Master Key Tuple with multiple key-ids and hitless rollover (negotiate send/receive key-id), and modern HMAC-SHA algorithms — MD5 has a single static key, no in-band rollover, and a weaker hash.
+
+**Verify:** `show bgp neighbor 20.12.21.21 | include AO|Authentication` (session UP with AO).
+
+#### 5.2.3 — RSVP authentication on Task 4.1 TE interfaces — IOS-XR
+
+```
+key chain RSVP-AUTH
+ key 1
+  key-string Cciesp#RsvpKey
+  cryptographic-algorithm HMAC-MD5
+  accept-lifetime 00:00:00 january 01 2024 infinite
+  send-lifetime   00:00:00 january 01 2024 infinite
+!
+rsvp
+ interface GigabitEthernet0/0/0/1
+  authentication
+   key-source key-chain RSVP-AUTH
+```
+
+**Why:** authenticates PATH/RESV so a spoofed message cannot create or tear down reservations. Confirm Task 4.1 tunnels re-establish with auth on.
+
+**Verify:**
+```
+show rsvp interface detail                 ! authentication enabled
+show mpls traffic-eng tunnels              ! Task 4.1 tunnels stay UP
 ```
 
 ---
 
-### Task 6.2 — Ansible UnicodeDecodeError MCQ — SOLUTION
+## Section 6 — Automation (5%)
 
-**Root cause:** The `UnicodeDecodeError` is almost certainly **not** a YAML syntax problem — it occurs because the BGP description field was copy-pasted from a non-UTF-8 source document (commonly Windows-1252/CP1252 from Word/Outlook, which can contain byte sequences such as smart quotes, em-dashes, or non-breaking spaces that are invalid or differently-encoded in UTF-8). `cisco.iosxr.iosxr_config` (and the underlying `ncclient`/Paramiko transport) assumes UTF-8 end-to-end when it reads the candidate configuration file/string and when it decodes the device's CLI response; a stray CP1252 byte sequence embedded in that description text causes the decode step to throw partway through the push.
-**Setting to audit/correct:** the **source document/text encoding of the variable file or template feeding the task** — specifically, ensure the inventory/vars file (or the Jinja2 template rendering the BGP description) is saved and read as UTF-8, and sanitize/normalize any copy-pasted text (strip non-ASCII "smart" punctuation) before it enters the playbook variables. If the vars are loaded from an external file, explicitly set `encoding: utf-8` wherever Ansible's `lookup`/`file`/template read happens, rather than only "fixing the YAML," since the YAML itself can be syntactically perfect and still carry an invalid byte sequence in a string value.
+### Task 6.1 — Streaming telemetry troubleshooting (gRPC TLS, TPA/VRF source, port vs MPP)
 
----
+**Scenario:** R14 model-driven telemetry → collector, no data arriving. Baseline config:
 
-### Task 6.3 — Telemetry Troubleshooting — SOLUTION
-
-**Scenario:** P2 streams `Cisco-IOS-XR-fib-common-oper` via dial-out gRPC every 30s; subscription shows `State: Active`; collector sees nothing.
-
-**Systematic isolation (in order):**
-1. **Subscription state** — `show telemetry model-driven subscription <name> detail` on P2: confirms `State: Active` (per the scenario) — if this had shown `Invalid` or `No Memory`, that would already be the root cause; since it's Active, move on.
-2. **Sensor-group path validity against the loaded YANG model** — `show telemetry model-driven sensor-group <name>` and cross-check the exact sensor-path string against the actual supported YANG paths for the running IOS-XR version (`show yang-data schema <path>` or the release's YANG model bundle). A sensor-path that was valid on a different IOS-XR version/release can silently fail to resolve or return empty data on this version if the model changed.
-3. **Destination-group transport/encoding match** — `show telemetry model-driven destination <name>` on P2 versus the collector's actual listener configuration: confirm the dial-out transport (`grpc` vs `grpc-tls`) and encoding (`self-describing-gpb`, `gpb`, `json`) P2 is sending **exactly match** what the collector expects to receive on that port — a transport/encoding mismatch typically shows the session as "connected" at the TCP level but the collector discards/can't parse the stream, matching the "subscription Active, collector sees nothing" symptom.
-4. **IP reachability / firewall to the collector's gRPC port** — basic `ping`/`traceroute` from P2 to the collector IP, and confirm no ACL/firewall is blocking the specific gRPC destination port in the dial-out direction.
-
-**The specific distinguishing show command:**
-```
-show telemetry model-driven destination <name>
-```
-This reveals the **per-destination transport statistics** — specifically counters for `Total bytes sent`, `Last Sent time`, and any `collection errors`. If this shows bytes actively being sent with a recent `Last Sent` timestamp and no errors, P2 believes it IS successfully exporting — the fault is downstream (collector-side packet loss, wrong port, firewall, or an encoding the collector can't parse), so you troubleshoot the network path/collector next. If this instead shows zero bytes sent / no successful collection attempts ever recorded, P2 never attempted a real export — the fault is upstream of the wire, i.e., a sensor-path/YANG mismatch (step 2) that produced no data to send in the first place, so you troubleshoot on P2's sensor-group/model configuration instead.
-
-**Resolution (most likely root cause for this scenario, matching "sensor-group was built against a different XR release"):** the sensor-path for `Cisco-IOS-XR-fib-common-oper` changed container structure between releases; correct the sensor-group to the path matching the currently loaded YANG model:
 ```
 telemetry model-driven
- sensor-group FIB-STATS
-  sensor-path Cisco-IOS-XR-fib-common-oper:fib-statistics-summary/nodes/node/afs/af/safs/saf/protos/proto/paths     ! corrected path matching the running release's model
+ destination-group DG1
+  address-family ipv4 10.255.0.50 port 57500
+   encoding self-describing-gpb
+   protocol grpc tls-hostname collector.example   ! TLS must match collector
+ !
+ sensor-group SG1
+  sensor-path Cisco-IOS-XR-infra-statsd-oper:infra-statistics/interfaces/interface/latest/generic-counters
+ !
+ subscription SUB1
+  sensor-group-id SG1 sample-interval 30000
+  destination-id DG1
+ !
+!
+grpc
+ port 57500
+ tls
 ```
-Re-verify with `show telemetry model-driven destination <name>` showing non-zero `Total bytes sent` and the collector receiving data.
+
+**Isolation sequence:**
+1. **TLS match** — if the collector listens no-TLS but DG1 has `protocol grpc tls-...` (or vice-versa) the dial-out fails silently. Confirm both ends agree (`show grpc status`). *Most common cause.*
+2. **TPA source-address / VRF** — ensure the session sources from a collector-reachable, advertised address and the correct VRF; a loopback invisible to the mgmt network or wrong VRF = no session (`show tpa`).
+3. **Port vs MPP** — the gRPC port (57500) must match the collector listener **and** be permitted by Task 5.1 MPP inband; if MPP denies it the session silently fails.
 
 **Verify:**
 ```
-show telemetry model-driven subscription <name> detail
-show telemetry model-driven destination <name>
+show telemetry model-driven destination-group DG1
+show telemetry model-driven subscription SUB1       ! state ACTIVE vs Connecting
 show grpc status
-show yang-data schema <corrected-sensor-path>
+show tpa
 ```
+
+### Task 6.2 — NSO: onboard, sync-from, device template, deploy L3VPN service
+
+```
+! --- onboard R14/R15 (NSO CLI, config mode) ---
+devices authgroups group IOSXR-AUTH umap admin remote-name admin remote-password <pw>
+devices device R14 address 150.2.14.14 port 830
+ device-type cli ned-id cisco-iosxr-cli-7.x
+ authgroup IOSXR-AUTH
+ state admin-state unlocked
+!
+devices device R15 address 150.2.15.15 port 830
+ device-type cli ned-id cisco-iosxr-cli-7.x
+ authgroup IOSXR-AUTH
+ state admin-state unlocked
+commit
+
+! --- fetch host keys + sync CDB BEFORE any change ---
+request devices device R14 ssh fetch-host-keys
+request devices device R15 ssh fetch-host-keys
+request devices device R14 sync-from
+request devices device R15 sync-from
+
+! --- device template (baseline SNMP) ---
+devices template BASELINE
+ config
+  cisco-ios-xr:snmp-server community LAB4-RO view ... RO
+!
+devices device-group GARNET-PE device [ R14 R15 ]
+request devices device-group GARNET-PE apply-template template-name BASELINE
+
+! --- L3VPN service instance ---
+l3vpn CUST-NEW
+ vrf-name CUST_NEW
+ rd 65200:777
+ rt 65200:777
+ endpoint R14
+  pe-interface GigabitEthernet0/0/0/5
+  ce-address 192.168.77.2
+  pe-address 192.168.77.1
+ endpoint R15
+  pe-interface GigabitEthernet0/0/0/5
+  ce-address 192.168.78.2
+  pe-address 192.168.78.1
+commit dry-run       ! inspect native XR config first
+commit
+```
+
+**Verify:**
+```
+show devices device R14 sync-from
+show devices device R14   state  oper-state
+! on routers:
+show running-config vrf CUST_NEW
+```
+
+### Task 6.3 — NSO troubleshooting: identify out-of-sync device, re-deploy reconcile
+
+**Scenario:** a manual CLI change on R14 or R15 made the L3VPN service `check-sync` fail; which device drifted is unknown.
+
+```
+! 1. find the drifted device
+request devices device * check-sync
+!   -> out-of-sync reported for exactly one device (e.g., R14)
+
+! 2. see WHAT drifted
+request devices device R14 compare-config
+
+! 3. remediate — two choices:
+!   (a) KEEP the manual change (learn it into CDB):
+request devices device R14 sync-from
+!   (b) OVERWRITE drift with NSO intent (service authoritative), preserving non-service config:
+request l3vpn CUST-NEW re-deploy reconcile
+!   or push stored CDB back to the device:
+request devices device R14 sync-to
+
+! 4. confirm back in-sync
+request devices device R14 check-sync      ! -> in-sync
+```
+
+**Tradeoff:** `sync-from` accepts the operator's out-of-band change as new truth (risk: codifies unreviewed config). `re-deploy reconcile` / `sync-to` reasserts NSO as source of truth and reverts the drift (risk: discards a change that may have been an intentional emergency fix) — `reconcile` keeps NSO-owned service config authoritative while leaving unrelated non-service config intact.
+
+**Verify:**
+```
+request devices device * check-sync
+request devices device R14 compare-config    ! empty after remediation
+show devices commit-queue
+! on router: show running-config vrf CUST_NEW matches NSO intent
+```
+
+### Task 6.4 — Ansible troubleshooting MCQ (UnicodeDecodeError)
+
+**MCQ — `cisco.iosxr` playbook to R15 fails with `UnicodeDecodeError: 'ascii' codec can't decode byte ...`.**
+**Answer: (a)** — the control node's locale is `C`/`POSIX` (ASCII), so Python cannot decode a non-ASCII byte in device output or a template (e.g., an accented character in an interface description or a byte in a banner). (b) wrong NED version, (c) NETCONF disabled, and (d) a BGP AF error would produce different, protocol-level failures — not a codec error.
+
+**Why:** under a `C`/ASCII locale Python's default text codec is ASCII; any byte ≥ 0x80 raises `UnicodeDecodeError`. Python 3 with a UTF-8 locale decodes the full byte range, so the output/template parses cleanly.
+
+**Fix (control node):**
+```
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+```
+Inventory / `ansible.cfg`:
+```
+# inventory
+[iosxr:vars]
+ansible_python_interpreter=/usr/bin/python3
+```
+**MPP interaction (Task 5.1):** make sure the transport Ansible uses (NETCONF over SSH / gRPC) is permitted by the inband MPP policy — a transport blocked by MPP is a *connectivity* failure, not an encoding fault; don't confuse the two.
 
 ---
 
-## Completion Checklist
+## Appendix — Verification Quick Index
 
-- [x] Section 1: IS-IS multi-level configured and verified (L1-only PEs, L1/L2 P-border, L2-only RR/ASBR); SR prefix-SID partition deployed with P1/P2 anycast-SID 16050; Flex-Algo 128 include-all (both affinity bits) configured and its empty/restrictive topology explained; SR-TE explicit adjacency-SID policy with primary/backup candidate-paths built and failover behavior explained; SRv6 locators assigned per the new per-role `/64` scheme; SR-ODN template with 20% ECMP margin configured.
-- [x] Section 2: EVPN EVI 4001 (VPWS, PE2↔PE3) and EVI 4002 (ELAN, PE1/PE2/PE4, single-active ES) configured; Inter-AS Option C (BGP-LU ASBR-A↔ASBR-B + multihop VPNv4 RR-to-RR with next-hop-unchanged) configured with ASBRs carrying zero VPNv4 state; ingress-DSCP-marking/core-EXP-only QoS policies built per PE/P role; L3VPN CUST-A built with `redistribute connected` + explicit filtering route-policy and documented risk.
-- [x] Section 3: SoO (`65000:4002`/`65000:4004`) + OSPF sham-link backdoor scenario configured with loop-prevention explained; all 6 troubleshooting MCQs (3 G.8032, 3 BGP NSR) answered.
-- [x] Section 4: SRv6 TI-LFA FRR with `priority-limit critical` configured (PE1/PE4 loopbacks tagged critical and protected; PE2/PE3 left unprotected by design) with resource-conservation rationale explained; OSPF NSF MCQ answered (missing GR-Helper capability on CE).
-- [x] Section 5: TCP-AO concept/design questions answered (MD5 weakness, per-session MKT rationale); keychain `BGP-KC-SEC` with HMAC-SHA1-96/AES-128-CMAC-96 overlapping-lifetime keys configured and applied via `ao`; hitless-rollover validation and clock-sync risk explained.
-- [x] Section 6: NSO out-of-sync PE2 reconciled via `sync-from` (justified for an authorized emergency change) + `CUST-A` `re-deploy reconcile` explained; Ansible `UnicodeDecodeError` MCQ answered (non-UTF-8 source text, not YAML syntax); MDT/gRPC telemetry fault isolated via the 4-step order and the destination-stats show command that distinguishes export-side vs path-side failures, with corrected sensor-path example.
+| Section | Headline checks |
+|---|---|
+| 1.1 | `show isis neighbors` (L1/L1L2/L2), `show route 150.1.7.7/32` on R1 (leaked) |
+| 1.2 | `show bgp ipv4 labeled-unicast 150.3.22.22/32`, `show mpls forwarding` |
+| 1.3 | `show isis segment-routing label table`, both R14/R15 originate 17140 |
+| 1.4 | `show segment-routing traffic-eng policy color 300 detail` (SID list + BSID 15300) |
+| 1.5 | `show segment-routing srv6 sid`, End.DT4/DT6 in `show bgp vpnv4 ... detail` |
+| 1.6 | `show pce lsp`, color 400 policy with margin 3000 + >1 ECMP path |
+| 1.7 | `show isis flex-algo 129`, Algo-129 stays on BLUE links |
+| 2.1 | `show evpn evi 2002 detail` (AC-IDs 2142/2152), `show l2vpn xconnect` |
+| 2.2 | `show bgp vpnv4 ... advertised-routes` (NH-self + new label per Option B hop) |
+| 2.3 | `show mpls mldp database`, `show pim vrf GREEN topology` (no core PIM) |
+| 2.4 | `show policy-map interface ... input/output` (EXP set / per-EXP queues) |
+| 3.1 | SoO `65025:2500` present + own-site routes absent; survives Option B |
+| 3.2 | `show bgp vpnv6 unicast vrf GREEN` (label/End.DT6) |
+| 4.1 | `show mpls traffic-eng tunnels`, FRR database protected+bypass |
+| 4.2 | `show bfd session` (client ISIS) |
+| 5.1 | MPP counters; SSH-in works, Telnet-out fails; `show key chain` |
+| 5.2 | `show bgp ipv4 flowspec` (+ dataplane note), BGP AO up, RSVP auth on |
+| 6.1 | `show grpc status`, `show telemetry ... subscription` |
+| 6.3 | `devices device * check-sync` → in-sync after reconcile |
+
+> **LAB4 vs LAB3 recap:** multi-level IS-IS · prefix-SID ×10 · Flex-Algo include-all · explicit SID-lists w/ adj-SIDs · SRv6 in Emerald · ODN 3000us ECMP margin · Option B everywhere · EVI 2001/2002 · mVPN Profile 3 · QoS ingress-mark+EXP · redistribute-connected R1/R20 · SoO on Blue R25 · 6VPE for Green · RSVP MPLS-TE AS65200 · BFD for IS-IS · Flowspec+TCP-AO+RSVP-auth · NSO reconcile · Ansible encoding MCQ.

@@ -1,289 +1,362 @@
 # LAB 3 — CCIE SP v5.1 Full Workbook (EVE-NG / IOS-XRv 9000)
 
-**Platform:** EVE-NG, Cisco IOS-XRv 9000 (7.x+)
-**Scope:** Full CCIE SP v5.1 blueprint, including technologies **not supported on Dynamips/IOS 15.2** (Segment Routing, SRv6, Flex-Algo, EVPN, streaming telemetry, NSO).
-**Companion lab:** This reuses the same logical topology, AS numbers, and router roles as the GNS3 Dynamips labs (`GNS3/workbooks/00_topology_reference.md`), re-platformed onto IOS-XRv 9000 so SR/SRv6/EVPN/telemetry features that Dynamips cannot run are testable.
-**Format:** Tasks only — no solutions. Work each task yourself; verify with `show` commands before moving on.
+**Platform:** EVE-NG, Cisco IOS-XRv 9000 (7.x+), all tasks in **IOS-XR** configuration syntax
+**Scope:** Full CCIE SP v5.1 blueprint, including technologies **not supported on Dynamips/IOS 15.2** — Segment Routing (SR-MPLS), SRv6 (uSID), Flex-Algo, SR-TE / SR-ODN, EVPN-VPWS, mVPN, streaming telemetry, NSO.
+**Companion labs:** This reuses the **exact same logical topology** (31 routers, 3 ASes, same AS numbers, same router roles, same IP addressing) as the GNS3 Dynamips labs (LAB1/LAB2). Rebuild the identical topology on EVE-NG with **IOS-XRv 9000** nodes in place of the Dynamips c7200 nodes, then configure using IOS-XR syntax.
+**Format:** **Tasks only — no solutions, no configuration snippets.** Each task gives you exact parameters (SID indices, locator prefixes, color values, EVI numbers, timers, IPs). You derive and apply the IOS-XR CLI, then verify with `show` commands.
 
 ---
 
-## 0. Topology Reference (map GNS3 → EVE-NG/IOS-XR)
+## 0. Topology Reference
 
-Same 3 autonomous systems, same roles, same R-numbers as the GNS3 base topology — only the platform and loopback-based hostnames below (Emerald/Garnet/Gold) differ for XR readability. If you prefer, keep the plain `R#` hostnames from GNS3; the AS numbers and roles are identical.
+Identical topology to the Dynamips labs. Same 3 autonomous systems, same roles, same R-numbers — only the node platform (IOS-XRv 9000) and CLI syntax (IOS-XR) change.
 
-| AS | Name | IGP | Transport | Routers (role) |
-|----|------|-----|-----------|-----------------|
-| **65100** | Emerald | IS-IS L2 | SR-MPLS + SRv6 (migrated from LDP) | R1(PE)/E-R1, R2(PE)/E-R2, R3(P)/E-R3, R4(P)/E-R4, R5(ASBR)/E-R5, R6(ASBR)/E-R6, R7(RR)/E-R7, R8(RR+PCE)/E-R8 |
-| **65200** | Garnet | OSPF Area 0 (base) / IS-IS where noted | SR-MPLS | R11(P)/Gar-R3, R12(ASBR)/Gar-R7, R13(P)/Gar-R4, R14(PE)/Gar-R1, R15(PE)/Gar-R2, R16(PE)/Gar-R5, R19(RR+PCE)/Gar-R6 |
-| **65300** | Gold | IS-IS L2 | SRv6 native | R20(ASBR/PE)/G-R4, R21(ASBR/PE)/G-R5, R22(PE)/G-R1, R23(PE)/G-R2, R30(RR+PCE)/G-R3 |
+### 0.1 Autonomous systems and roles
 
-**Loopback0 convention (unchanged from GNS3):** `150.<AS-last-digit>.<R#>.<R#>/32` — e.g., R1 = 150.1.1.1/32, R20 = 150.3.20.20/32.
-**IS-IS NET-IDs, core link subnets, inter-AS links, and PE-CE links:** identical to `GNS3/workbooks/00_topology_reference.md` — reuse that addressing plan verbatim; only the CLI changes to IOS-XR syntax.
-**New IOS-XR-only addressing you will add in this lab:**
+| AS | IGP | Transport (this lab) | Routers (role) |
+|----|-----|----------------------|-----------------|
+| **65100** | IS-IS L2 | **SR-MPLS** (prefix-SIDs, TI-LFA, Flex-Algo) | R1(PE), R2(PE), R3(P), R4(P), R5(ASBR), R6(ASBR), R7(RR), R8(RR) |
+| **65200** | OSPF Area 0 | **LDP/MPLS** (legacy — LDP-to-SR migration domain) | R11(P), R12(ASBR), R13(P), R14(PE), R15(PE), R16(PE), R19(RR) |
+| **65300** | IS-IS L2 | **SRv6** (uSID locators, SRv6 L3VPN) | R20(ASBR/PE), R21(ASBR/PE), R22(PE), R23(PE), R30(RR+PCE) |
+
+### 0.2 Customer edge (CE) routers
+
+| CE | Customer | PE-CE protocol | Attaches to |
+|----|----------|----------------|-------------|
+| R9, R10 | Green | eBGP AS 65910 | AS65100 PEs |
+| R17 | Green | OSPF | R15 (PE-CE OSPF) |
+| R18 | Green | eBGP AS 65910 | AS65200 PE |
+| R24 | Yellow | eBGP AS 65024 | **dual-homed** R20 + R22 |
+| R26 | Yellow | eBGP AS 65024 | AS65300 PE |
+| R25 | Blue | eBGP AS 65025 | AS65200/65300 PE |
+| R32 | Blue | eBGP AS 65025 | AS65300 PE |
+| R27, R28, R29 | Red | VLAN100 L2 (EVPN/VPWS) | R14, R16 |
+
+### 0.3 Loopback0 convention
+
+`150.<AS-last-digit>.<R#>.<R#>/32`:
+- AS65100 → `150.1.X.X/32` (R1=150.1.1.1, R8=150.1.8.8)
+- AS65200 → `150.2.X.X/32` (R11=150.2.11.11, R19=150.2.19.19)
+- AS65300 → `150.3.X.X/32` (R20=150.3.20.20, R30=150.3.30.30)
+
+### 0.4 Inter-AS links
+
+| Link | Subnet | Purpose |
+|------|--------|---------|
+| R5 ↔ R11 | 10.5.11.0/24 | AS65100 ↔ AS65200 (Inter-AS **Option A**, Green) |
+| R6 ↔ R12 | 10.6.12.0/24 | AS65100 ↔ AS65200 |
+| R6 ↔ R20 | 10.6.20.0/24 | AS65100 ↔ AS65300 (Inter-AS **Option B**) |
+| R12 ↔ R21 | 20.12.21.0/24 | AS65200 ↔ AS65300 (Inter-AS **Option B**) |
+
+### 0.5 IOS-XR-specific addressing you will build in this lab
 
 | Purpose | Scheme |
 |---|---|
-| SRGB (SR-MPLS, all ASes) | 16000–23999 |
-| SRLB (per node) | 15000–15999 |
-| Prefix-SID index | = last octet of Loopback0 (R1→1, R20→20, etc.) |
-| Anycast SID (redundant PE pair R14/R15, Garnet) | index 114, label 16114 |
-| SRv6 locator block (Gold, AS 65300) | `fc00:3:<R#>::/48`, F3216 uSID format |
-| SRv6 locator block (Emerald, AS 65100, SRv6 overlay) | `fc00:1:<R#>::/48` |
-| Flex-Algo 128 (low-latency) | affinity-colored links, separate SPF |
-| Color communities (SR-TE / SR-ODN) | 100 = low-latency, 200 = low-cost/TE-metric |
-| EVI numbers (EVPN-VPWS) | EVI 1001 (R1↔R16 Red circuit), EVI 1002 (Gar-R1↔Gar-R2 secondary) |
+| SRGB (SR-MPLS, AS65100) | **default** 16000–23999 |
+| SRLB (per node, AS65100) | **25000–26000** |
+| Prefix-SID index | = **last octet of Loopback0** (R1→1, R5→5, R8→8) |
+| Anycast SID (R1 + R2) | Loopback99, **SID 99**, **n-flag-clear** |
+| SRv6 locator block (AS65300) | **`FC00:0300:00XX::/48`** per router, **F3216** C-SID (uSID) format (X = router number) |
+| SRv6 locator tag | **200** |
+| Flex-Algo (AS65100) | **Algo 233** (exclude red affinity), **Algo 234** (exclude blue affinity) |
+| SR-TE binding-SID (R1→R5) | **24333** |
+| Color communities | **333** (SR-TE autosteer R5→R1), **30** (SR-ODN Platinum/latency, R22 Blue) |
+| EVPN-VPWS EVI | **400** (Red, R14↔R16, AC 12) |
+| AToM/VPWS VC-ID | **100** (Red, R14↔R16, VLAN100) |
+| mVPN default MDT | **239.232.0.1**, data MDT range **239.232.100.0/24**, SSM core **239.232.0.0/16** |
 
 ---
 
 ## Section 1 — Core Network Infrastructure (25%)
 
-### Task 1.1 — IS-IS with Flex-CLI configuration groups, wide metrics, single-topology dual-stack, LDP sync, overload-bit, keychain auth
+### Task 1.1 — IS-IS L2 (AS65100 + AS65300) via flex-CLI configuration groups
 
-On the **Emerald AS 65100** core (R1–R8), build the Level-2-only IS-IS process using **configuration groups** (`isis-interface-group` / interface config-group under `router isis`) so common per-interface stanzas (metric, address-families, authentication) are defined once and applied to all core-facing interfaces instead of being repeated.
+Enable **IS-IS Level-2-only** on **AS65100 (R1–R8)** and **AS65300 (R20, R21, R22, R23, R30)** using IOS-XR **flex-CLI `group` configuration groups** so common per-interface and per-instance stanzas are defined once and applied by `apply-group`, not repeated per interface.
 
-Requirements:
-1. Single IS-IS instance, **Level 2 only** on every interface (no L1, no L1/L2).
-2. **Wide metrics** (`metric-style wide`) under both the IPv4 and IPv6 unicast address-families — mandatory prerequisite for Task 1.3's SR sub-TLVs.
-3. **Single-topology** IS-IS carrying both IPv4 and IPv6 unicast (do **not** use multi-topology / MT).
-4. Build an **interface configuration group** containing: wide-metric address-families, LDP sync enablement, and HMAC-MD5 authentication reference — apply the group to all core-facing GigabitEthernet interfaces on R3, R4, R5, R6 (the "P" tier).
-5. Enable **LDP IGP-sync** (`mpls ldp sync`) on all core links in AS 65100 so IS-IS holds a link's metric at max until LDP session + label exchange with that neighbor completes.
-6. Set the **overload-bit** on R7 and R8 (the RRs) with `set-overload-bit on-startup wait-for-bgp` so they do not become a mid-path forwarding node for transit traffic until their BGP sessions converge after a reload.
-7. Configure a **keychain** named `ISIS-KEY` under `key chain ISIS-KEY` with HMAC-MD5 algorithm, and reference it from the IS-IS instance for both **hello authentication** and **LSP authentication** on every Level-2 interface (do not configure this in Task 1.1 beyond referencing — the keychain lifetime/key details are built out fully in Task 5.2).
+Requirements for both IS-IS domains:
+1. Single IS-IS instance, **Level 2 only** on every router and every interface (no L1, no L1/L2).
+2. **Wide metrics** — set the default metric to **200 for IPv4** unicast and **400 for IPv6** unicast under the respective address-families.
+3. **Single-topology** carrying both IPv4 and IPv6 unicast (do **not** use multi-topology / MT).
+4. All core links **point-to-point** (`point-to-point`).
+5. **Passive** Loopback0 (and Loopback99 where it exists) in IS-IS.
+6. **Disable hello-padding** on all IS-IS interfaces.
+7. **LDP IGP-sync** enabled under IS-IS (relevant where LDP runs — carry the knob in the group so it is uniform).
+8. **`set-overload-bit on-startup 180`** on **R7** and **R8** (AS65100 RRs) and on **R30** (AS65300 RR) so they do not attract transit during the 180 s post-reload window.
+9. **HMAC-MD5 authentication** referencing a **keychain** (hello + LSP). Define the keychain name here and reference it from the IS-IS instance/interface group; the key lifetimes and secret are fully built in **Task 5.2**.
 
-Verify: `show isis neighbors`, `show isis database verbose`, `show mpls ldp neighbor`, `show isis adjacency detail` (confirm `authentication` and LDP-sync hold-down states clear once LDP comes up).
+Build at least:
+- A **flex-CLI group** for the common IS-IS interface stanza (afi/safi metrics, p2p, hello-padding disable, LDP sync, keychain auth) applied to all core interfaces.
+- A **flex-CLI group** for the common IS-IS instance stanza (metric-style wide, single-topology, keychain reference).
 
-### Task 1.2 — BGP Unified MPLS: BGP-LU, inline RRs on P routers, allocate-label all
+Verify: `show isis neighbors`, `show isis adjacency detail`, `show isis database verbose`, `show running-config group`, `show running-config inheritance interface`.
 
-Extend MPLS label-switched reachability for PE loopbacks **end-to-end across all three ASes** using the Unified MPLS / Seamless MPLS architecture (BGP-LU, RFC 3107).
+### Task 1.2 — OSPF Area 0 (AS65200)
 
-1. On every ASBR (R5, R6, R12, R20, R21) and every RR (R7, R8, R19, R30), enable the **`address-family ipv4 labeled-unicast`** (or `address-family ipv4 unicast` with `allocate-label all` depending on XR version — use `labeled-unicast` AF explicitly) BGP session.
-2. Configure **`allocate-label all`** under the IPv4 unicast AF on R3 and R4 (the inline P-tier routers in Emerald) so that **every** IGP-learned prefix — not just loopbacks — receives an MPLS label and is redistributed into BGP-LU. This makes R3/R4 function as **inline Route Reflectors** for BGP-LU, removing the need for a dedicated RR in the label-switched path.
-3. Redistribute each AS's IS-IS/OSPF loopbacks into BGP-LU at the ASBR boundary; do not redistribute BGP-LU prefixes back into the IGP.
-4. Build the Unified MPLS core such that a PE in Garnet (R14) can resolve a BGP-LU label-switched path all the way to a PE in Gold (R22) across both ASBR hops (R12→R21 is **not** directly connected — verify the actual path transits R6/R20 or the direct R12↔R21 inter-AS link per the topology reference).
-5. On R3 and R4, confirm `show mpls label range` and `show bgp labeled-unicast ipv4 unicast` reflect the inline-RR label allocations.
+On **AS65200 (R11, R12, R13, R14, R15, R16, R19)** build a single **OSPF process, Area 0**:
+1. All core links **point-to-point** (`network point-to-point`).
+2. **MD5 authentication** (OSPF area or per-interface message-digest) on all core adjacencies.
+3. **BFD** enabled for OSPF on all core links (tie to the BFD template; interval tuning per Section 4 where applicable).
+4. **SPF throttle timers**: `timers throttle spf 50 200 5000` (initial 50 ms, min-hold 200 ms, max-wait 5000 ms).
+5. Passive Loopback0.
 
-Verify: `show bgp ipv4 labeled-unicast summary`, `show mpls forwarding | include <PE-loopback>`, end-to-end `ping mpls ipv4 <remote-PE-loopback>/32` across AS boundaries.
+Verify: `show ospf neighbor`, `show ospf interface`, `show bfd session`, `show ospf`.
 
-### Task 1.3 — Segment Routing on IS-IS: prefix-SID, SRGB/SRLB, anycast SID, TI-LFA, microloop avoidance
+### Task 1.3 — LDP / MPLS (AS65200 core)
 
-Migrate the Emerald core (R1–R8) from LDP to **SR-MPLS** under IS-IS while Garnet (R11–R19) is **built SR-native** from the start.
+On the **AS65200** OSPF core enable **MPLS LDP** (this is the legacy transport domain, later migrated to SR):
+1. Enable LDP on all AS65200 core interfaces (R11, R12, R13, R14, R15, R16, R19).
+2. **Label filtering** — advertise labels for **PE/RR /32 loopbacks only** (`mpls ldp label allocate` / `advertise` ACL limiting to the `150.2.x.x/32` set).
+3. **LDP session protection** on all sessions.
+4. **LDP-IGP synchronization** (coordinate with OSPF so a link is not used until LDP labels are exchanged).
 
-1. Enable `segment-routing mpls` under the IS-IS IPv4 unicast address-family on all nodes in both ASes.
-2. Set a common **SRGB 16000–23999** and per-node **SRLB 15000–15999** on every SR-enabled router.
-3. Assign **prefix-SID index = last octet of Loopback0** to each node (R3 → index 3 → label 16003; Gar-R1/R14 → index 14 → label 16014, etc.).
-4. Configure an **anycast SID** across the redundant PE pair R14 and R15 (Garnet) — both advertise prefix-SID **index 114** (label 16114) on a shared anycast loopback (e.g., 150.2.114.114/32) so either PE can be targeted as a single ECMP-capable endpoint for inter-AS VPN traffic.
-5. Enable **TI-LFA** (`fast-reroute per-prefix ti-lfa` under IS-IS IPv4 unicast) on every core-facing interface in both ASes for sub-50ms link/node protection without RSVP.
-6. Enable **microloop avoidance** (`microloop avoidance protected` or `segment-routing microloop-avoidance` under IS-IS, depending on XR train) on all SR nodes so transient micro-loops during SPF reconvergence after a planned/unplanned topology change are suppressed via a temporary SR detour.
-7. Confirm LDP is fully removed from Emerald only after SR-MPLS reachability is proven (ships-in-the-night first, then `no mpls ldp` per interface).
+Verify: `show mpls ldp neighbor`, `show mpls ldp bindings`, `show mpls forwarding`, `show mpls ldp igp sync`.
 
-Verify: `show segment-routing mpls prefix-sid-map`, `show isis segment-routing`, `show mpls traffic-eng topology` (TI-LFA repair paths), `show isis fast-reroute ti-lfa`.
+### Task 1.4 — BGP Unified MPLS (iBGP-LU across all 3 ASes)
 
-### Task 1.4 — SR-TE: dynamic policies, TE metric, binding-SID, autoroute steering, BGP color/autosteering, explicit segment-lists, affinity
+Build end-to-end label-switched reachability for PE loopbacks across all three ASes (Unified/Seamless MPLS, BGP-LU / RFC 3107):
+1. Enable **`address-family ipv4 labeled-unicast`** on the inter-AS and core BGP sessions as needed.
+2. **RRs R7 and R8** reflect BGP-LU for the **AS65100 core**.
+3. **P routers R3 and R4** act as **inline Route Reflectors** for BGP-LU within AS65100.
+4. **`allocate-label all`** under the IPv4 unicast AF so every IGP prefix (not just loopbacks) gets a label pushed into BGP-LU on the label-stitching nodes.
+5. **`next-hop-self`** at every ASBR (R5, R6, R12, R20, R21) for the BGP-LU prefixes so the label stack is re-originated at each AS boundary.
 
-On **Gar-R1 (R14)**, build four distinct SR-TE policies toward **Gar-R2 (R15)**:
+Verify: `show bgp ipv4 labeled-unicast`, `show bgp ipv4 labeled-unicast <PE-loopback>/32`, `show mpls forwarding`, end-to-end `traceroute` across AS boundaries showing a continuous label stack.
 
-1. **Dynamic policy**, color **200**, optimized on the **TE metric** (`metric-type te`), recomputed automatically on topology/metric change.
-2. **Explicit policy**, color **201**, with a manually specified **segment-list** of prefix-SIDs forcing the path Gar-R1 → Gar-R4(R13) → Gar-R5(R16) → Gar-R2, bypassing the direct link.
-3. Configure a **binding-SID** on the explicit policy (Task 2) so it can be referenced as a single label by upstream traffic-engineering or by a parent SR-TE policy (hierarchical SR-TE).
-4. Enable **autoroute steering** on the dynamic policy (Task 1) so IGP-shortest-path traffic toward Gar-R2's loopback is automatically forwarded into the policy without requiring explicit route steering.
-5. Advertise a **BGP color extended community (color 200)** on VPNv4 routes from Gar-R2 so Gar-R1 **autosteers** matching VPN traffic into the color-200 SR-TE policy purely via BGP (no static `autoroute` or PBR needed) — this is BGP color-based automatic steering.
-6. Define **affinity constraints**: tag the Gar-R3↔Gar-R4 link with affinity-color `RED`, then build a 5th policy that explicitly **excludes** affinity `RED` (`exclude-any RED`) and a 6th that **requires** it (`include-all RED`); verify both compute different paths.
+### Task 1.5 — Segment Routing on IS-IS (AS65100, SR-MPLS)
 
-Verify: `show segment-routing traffic-eng policy color 200`, `show segment-routing traffic-eng policy name <name> detail` (binding-SID, affinity constraints), `show bgp vpnv4 unicast <prefix> detail` (color community + resolved tunnel).
+Overlay **SR-MPLS** on the AS65100 IS-IS domain (R1–R8):
+1. **SRGB** = platform **default (16000–23999)** on all 8 routers.
+2. **SRLB** = **25000–26000** on all 8 routers.
+3. **Prefix-SID index** = **last octet of Loopback0** (R1 index 1 → label 16001, R5 index 5 → 16005, R8 index 8 → 16008, etc.). Advertise the prefix-SID on each Loopback0 under IS-IS.
+4. **Anycast SID** on **R1 and R2**: both advertise a shared **Loopback99** with prefix-SID **index 99**, **`n-flag-clear`** (not a node-SID). This provides an anycast "nearest-of-R1/R2" entry point.
+5. **TI-LFA** FRR enabled on **all** IS-IS interfaces on R1–R8 (`fast-reroute per-prefix ti-lfa`).
+6. **Microloop avoidance** enabled under IS-IS on all 8 routers.
 
-### Task 1.5 — SRv6: uSID/C-SID F3216 locator plan, PSP/USD, locator advertisement with tags, SRv6 L3VPN transport
+Verify: `show isis segment-routing label table`, `show mpls forwarding labels 16000 16100`, `show isis fast-reroute`, `show route <loopback>` (confirm TI-LFA backup), `show segment-routing local-block inconsistencies`.
 
-Build the **Gold AS 65300** core (R20–R23, R30) natively on **SRv6** using the **uSID (micro-SID) / C-SID** compressed format.
+### Task 1.6 — SRv6 (AS65300)
 
-1. Define an **F3216 locator plan**: 32-bit locator block + 16-bit micro-SID function per hop, carved from `fc00:3:<R#>::/48` on each Gold router (e.g., R30 → `fc00:3:30::/48`).
-2. Configure the **PSP (Penultimate Segment Pop)** and **USD (Ultimate Segment Decapsulation)** behaviors on the relevant End/End.X SIDs so the penultimate hop pops the active segment and the final hop decapsulates — reducing SRH processing on transit nodes.
-3. Advertise each locator under IS-IS SRv6 with a **tag** (e.g., tag 3000 on all Gold locators) so locator-derived routes can be filtered/matched later in route-policy for inter-domain leaking control.
-4. Build **SRv6-based L3VPN transport**: configure VRF(s) on R22 and R23 with `encapsulation-type srv6`, per-VRF SID allocation (`alloc mode per-vrf`), and confirm VPNv4 routes between R22/R23 carry an **End.DT4 SRv6 SID** instead of an MPLS label.
-5. Confirm the data plane: packet captures or `show cef vrf <name> <prefix>` show an IPv6 SRv6 header, not an MPLS label stack.
+Deploy **SRv6 (uSID / C-SID)** natively in AS65300 (R20, R21, R22, R23, R30):
+1. Enable SRv6 with **micro-segment (uSID) F3216** C-SID format.
+2. **Per-router locator** = **`FC00:0300:00XX::/48`** where XX is the router number (R20 → `FC00:0300:0020::/48`, R21 → `FC00:0300:0021::/48`, R22 → `FC00:0300:0022::/48`, R23 → `FC00:0300:0023::/48`, R30 → `FC00:0300:0030::/48`).
+3. **End behavior** = **`psp-usd`** (penultimate segment pop / ultimate segment decap).
+4. **Locator tag 200** on each locator (used by Task 4.2 prefix-priority).
+5. Enable **SRv6 logging** of locator/SID allocation.
+6. **SRv6 source address** = each router's **Loopback0 IPv6** address.
+7. Advertise locators into IS-IS (SRv6 under the IS-IS IPv6 AF).
+8. Stand up **SRv6-based L3VPN** transport for the **Yellow** customer (service config detailed in Section 2, Task 2.1 — here enable the SRv6 services locator/AF so Yellow VPNv4/VPNv6 can ride SRv6).
 
-Verify: `show segment-routing srv6 sid`, `show segment-routing srv6 locator detail`, `show isis database verbose | include SRv6|Tag`, `show bgp vpnv4 unicast vrf <name> <prefix> detail`.
+Verify: `show segment-routing srv6 locator`, `show segment-routing srv6 sid`, `show isis database verbose` (locator TLVs), `show cef ipv6 <locator>`, `show segment-routing srv6 manager`.
 
-### Task 1.6 — SR-ODN: color-triggered on-demand policies, PCE-computed latency paths
+### Task 1.7 — SR-TE (R1 → R5)
 
-1. On **Gar-R6 (R19)**, enable **SR-PCE** (`pce address ipv4 <loopback>` + `segment-routing traffic-eng pcc`), and configure **Gar-R1 (R14)** as a PCC delegating path computation to it.
-2. Configure **On-Demand Next-hop (ODN)** on Gar-R1: when a VPNv4 route arrives carrying **color 100**, an SR-TE policy toward that route's BGP next-hop is **automatically instantiated** (no manual policy definition) using an ODN template that references a **dynamic path optimized on the latency (min-delay) metric** and requests computation from the Gar-R6 PCE.
-3. Tag outbound VPNv4 routes on **Gar-R2 (R15)** for a specific customer with **color-100** extended community so inbound traffic at Gar-R1 toward that customer triggers the ODN policy end-to-end.
-4. Confirm the PCE actually computed the path (not purely headend SPF) by checking the policy's delegation/PCEP state.
+Create an **SR-TE policy** from **R1 to R5** in AS65100:
+1. **Dynamic** candidate path optimized on the **TE metric**.
+2. **Binding-SID = 24333**.
+3. **Autoroute include** for **R5's Loopback100** so IGP shortest-path traffic to that prefix rides the policy.
+4. Advertise from **R5 to R1** a service/loopback prefix tagged with **color community 333**, and enable **BGP autosteering (color)** on R1 so color-333 routes resolve onto the R1→R5 SR policy automatically.
 
-Verify: `show pce peer`, `show pce lsp`, `show segment-routing traffic-eng policy color 100 detail` (confirm `PCC info:` and delegation state), `show bgp vpnv4 unicast <prefix> detail` (color 100 + auto-created tunnel).
+Verify: `show segment-routing traffic-eng policy name <...>`, `show segment-routing traffic-eng policy binding-sid 24333`, `show bgp ipv4 unicast <R5-Lo100>` (color ext-comm 333), `show route <R5-Lo100>` (resolved via binding-SID / policy).
 
-### Task 1.7 — Flex-Algo: algorithm definition, affinity constraints, per-algo prefix-SID, SR policy constrained to flex-algo
+### Task 1.8 — SR-ODN (R22, Blue customer)
 
-1. On **Gar-R6 (R19)**, define **Flex-Algo 128** under `segment-routing flex-algo 128`: metric-type **delay (min-latency)**, with constraint **`exclude-any affinity RED`** (reuse the RED affinity tag from Task 1.4) so Algo 128's SPF never traverses RED-tagged links.
-3. On every Garnet node, advertise a **per-algorithm prefix-SID** for Loopback0 under Algo 128 — distinct from the default Algo-0 SID (e.g., Gar-R1 default index 14/label 16014, Algo-128 index 1014/label a separate SRGB-relative label).
-4. Enable Flex-Algo participation (`flex-algo 128` under IS-IS SR config) on all Garnet nodes so Algo 128 computes its own constrained SPT in parallel with the default topology.
-5. Build an SR-TE policy on Gar-R1 that is explicitly **constrained to Flex-Algo 128** (`algorithm 128` under the dynamic path's constraints) and confirm it resolves to the Algo-128 SID stack, not the default-topology path.
+Configure **On-Demand Next-hop (ODN)** for the **Blue** customer on PE **R22** (AS65300):
+1. **ODN color = 30** ("Platinum" / low-latency intent).
+2. On-demand SR policy **computed by the PCE** (not locally).
+3. **PCE = R30** (AS65300 RR acts as SR-PCE). Configure R22 as a **PCEP client (PCC)** peering to R30.
+4. Blue VPN prefixes received with color-30 trigger instantiation of an ODN policy to the egress PE, path computed by R30 using the delay/latency metric.
 
-Verify: `show isis segment-routing flex-algo`, `show segment-routing flex-algo`, `show segment-routing traffic-eng policy name <name> detail` (confirm algo 128 constraint and resulting SID list differs from the Algo-0 shortest path).
+Verify: `show segment-routing traffic-eng policy color 30`, `show pce ipv4 peer` (on R30), `show segment-routing traffic-eng pcc ipv4 peer` (on R22), `show bgp vpnv4 unicast vrf BLUE` (color 30 ext-comm, ODN-resolved next-hop).
+
+### Task 1.9 — Flex-Algo (R1 ↔ R5)
+
+Define two **IGP Flex-Algos** in AS65100 between **R1 and R5**:
+1. **Flex-Algo 233** — exclude links colored with the **red** affinity (`affinity exclude-any red`).
+2. **Flex-Algo 234** — exclude links colored with the **blue** affinity (`affinity exclude-any blue`).
+3. Assign the **red** and **blue** affinity colors to the appropriate core links (define affinity bit-maps and apply to interfaces so each algo has a distinct constrained path R1↔R5).
+4. Advertise **per-algo prefix-SIDs** on R1 and R5 Loopback0 for algo 233 and algo 234 (distinct SID per algorithm).
+5. Create **SR policies from R1 to R5 constrained to flex-algo 233 and to flex-algo 234** respectively (constraint `segment-list` / dynamic with `constraints algorithm 233` / `234`).
+
+Verify: `show isis flex-algo`, `show segment-routing traffic-eng policy` (per-algo), `show isis database verbose` (FAD / per-algo prefix-SID), `show route <R5-Lo0> algorithm 233`.
 
 ---
 
 ## Section 2 — Architecture and Services (25%)
 
-### Task 2.1 — EVPN-VPWS: T-LDP VPWS + EVPN-VPWS over SRv6
+### Task 2.1 — L3VPN (VRF GREEN / YELLOW / BLUE, all ASes)
 
-1. Build a classic **T-LDP-signaled VPWS** pseudowire between **R16 (Garnet PE)** and **R1 (Emerald PE)** for the "Red" cross-AS circuit, EVI/PW-ID **1001**, using `l2vpn xconnect group RED p2p RED-PW` with `mpls static` or `mpls ldp` neighbor targeted session across the inter-AS boundary.
-2. Separately, build an **EVPN-VPWS** service (RFC 8214) between **Gar-R1 (R14)** and **Gar-R2 (R15)** carried over the **SRv6** transport from Task 1.5, EVI **1002**: configure `l2vpn evpn evi 1002`, EVPN-VPWS service with local/remote AC-ID and EVI, and `encapsulation-type srv6` on the EVPN control-plane session so MPLS labels are replaced by SRv6 SIDs end-to-end.
-3. Contrast the two: T-LDP VPWS requires a targeted LDP session per PW; EVPN-VPWS uses BGP EVPN (RT/RD + EVI) as its single control plane and can ride any transport (MPLS, SR-MPLS, SRv6) without per-service signaling sessions.
-4. Attach a customer-facing Ethernet sub-interface on each PE's access side to each respective PW.
+Build MPLS/SRv6 L3VPN for three customers across all three ASes:
+1. Define VRFs **GREEN**, **YELLOW**, **BLUE** on the PEs that attach each customer.
+2. **RD/RT scheme** (document and apply consistently):
+   - RD = `<PE-ASN>:<customer-id>` (e.g., GREEN = `65100:1`, YELLOW = `65300:2`, BLUE = `65300:3` on AS65300 PEs; mirror per-AS).
+   - RT import/export per customer: GREEN `*:1`, YELLOW `*:2`, BLUE `*:3`.
+3. **PE-CE eBGP** for Green (R9/R10/R18 AS65910), Yellow (R24/R26 AS65024), Blue (R25/R32 AS65025).
+4. **PE-CE OSPF** between **R15 ↔ R17** (Green OSPF site) — redistribute mutually with the VPNv4 backbone (set OSPF domain-id as needed).
+5. **`as-override`** on PE-CE eBGP sessions where a CE reuses the same ASN at multiple sites (Green AS65910, Yellow AS65024, Blue AS65025).
+6. **Site-of-Origin (SoO)** on the **dual-homed** CE attachments (notably Yellow R24 on R20 and R22) to prevent re-advertisement loops.
+7. SRv6-based transport for Yellow in AS65300 (from Task 1.6); MPLS transport for Green/Blue elsewhere.
 
-Verify: `show l2vpn xconnect group RED`, `show evpn evi 1002 detail`, `show l2vpn xconnect summary`, confirm the EVPN-VPWS pseudowire state is `UP` with the correct remote AC-ID.
+Verify: `show vrf all`, `show bgp vpnv4 unicast summary`, `show bgp vrf GREEN`, `show bgp vrf YELLOW`, `show route vrf BLUE`, PE-CE `show bgp vrf ... neighbors`, `show ospf vrf GREEN neighbor`.
 
-### Task 2.2 — L3VPN: Intra-AS, Inter-AS Option B, PE-CE BGP + OSPF, as-override
+### Task 2.2 — Inter-AS L3VPN (Option A + Option B)
 
-1. Build **intra-AS L3VPN** within Garnet for the **Green** customer (per topology reference: R17 via OSPF PE-CE on R15, R18 via eBGP AS 65910 on R16).
-2. Build **Inter-AS Option B** for the **Blue** customer spanning Emerald↔Garnet: VPNv4 **eBGP directly between ASBRs R6 and R12** (no RR relay — Option B re-originates the VPNv4 route at each ASBR with next-hop-self and a fresh label).
-3. On the Garnet side PE-CE link using OSPF (R15↔R17), ensure the VPN backbone is transparent to OSPF via the standard **sham-link or down-bit/domain-tag** handling so Area 0 continuity isn't falsely inferred across the MPLS core.
-4. On a PE-CE eBGP link where the customer's CE sits in the **same ASN** on both ends of a hub-and-spoke VPN (e.g., both R18 and another spoke CE use AS 65910), configure **`as-override`** on the PE so the customer ASN is rewritten in the AS-path and the route is not rejected by AS_PATH loop detection at the spoke CE.
-5. Verify route re-origination at both ASBRs for Option B (RD/RT changes expected, AS-path should show the Option B hop).
+1. **Option A (back-to-back VRF)** on **R5 ↔ R11** for the **Green** customer: each ASBR holds a GREEN VRF, PE-CE-style eBGP VPN hand-off across the 10.5.11.0/24 link, per-VRF subinterface.
+2. **Option B (VPNv4/VPNv6 eBGP, next-hop-self)** on **R12 ↔ R21** (20.12.21.0/24) and **R6 ↔ R20** (10.6.20.0/24): exchange labeled VPN routes directly between ASBRs.
+3. On the Option B ASBRs configure **RT retention** (`retain route-target all` or filtered) so VPN routes are not dropped for locally-unconfigured RTs.
+4. **`next-hop-self`** on the Option B ASBRs for the VPNv4/VPNv6 routes handed to the remote AS.
 
-Verify: `show bgp vpnv4 unicast vrf <name>`, `show bgp vpnv4 unicast neighbor <ASBR> advertised-routes`, `show route vrf <name> <customer-prefix>` (confirm label swap at ASBR for Option B), `show cef vrf <name>`.
+Verify: `show bgp vpnv4 unicast rd <...>`, `show bgp vpnv6 unicast`, Option A: `show route vrf GREEN` on both ASBRs; Option B: `show bgp vpnv4 unicast neighbor <ASBR> received-routes` and label stitching across the boundary.
 
-### Task 2.3 — Multicast VPN: NG-MVPN, PIM-SSM core, BGP auto-discovery, mdt default/data
+### Task 2.3 — L2VPN AToM / VPWS (Red, R14 ↔ R16)
 
-1. Enable **PIM-SSM** (`router pim / address-family ipv4 / rpf topology route-policy`, SSM range 232.0.0.0/8) in the Garnet core — no RP needed.
-2. Configure **NG-MVPN** on the Garnet PEs (R14, R15, R16): `vrf <name> / address-family ipv4 mdt`, enable **BGP-based auto-discovery** (`mdt auto-discovery pim`) so PE-to-PE MDT membership is learned via BGP instead of a static or PIM-only mechanism.
-3. Configure the **MDT default group** per VRF for low-bandwidth/control multicast traffic, and the **MDT data group range** for high-bandwidth source switchover (`mdt data 10 group-range <range> threshold <kbps>`).
-4. Verify source-tree switchover: a customer multicast source behind R18 crossing a configured data-threshold triggers the PEs to switch from the default MDT to a dedicated data MDT.
+Build a **point-to-point AToM/VPWS pseudowire** for the **Red** customer between **R14 and R16**:
+1. **VLAN 100** attachment circuit on each PE (subinterface, `l2transport`).
+2. **VC-ID = 100**.
+3. Pseudowire signaled by **targeted LDP** (`neighbor <remote-PE-Lo0>` under the xconnect / l2vpn `pw-class` using MPLS/LDP encapsulation).
+4. Keep this circuit **alongside** the EVPN-VPWS circuit of Task 2.4 for direct comparison.
 
-Verify: `show pim vrf <name> group-map`, `show mvpn vrf <name> pe`, `show mvpn vrf <name> database`, `show bgp ipv4 mdt`.
+Verify: `show l2vpn xconnect`, `show l2vpn xconnect detail`, `show mpls ldp neighbor` (targeted session R14↔R16), end-to-end CE-to-CE L2 reachability over VLAN100.
 
-### Task 2.4 — H-QoS: hierarchical MQC with shaping, policing, WRED, DSCP remarking
+### Task 2.4 — EVPN-VPWS (Red, R14 ↔ R16)
 
-On **R14 (Gar-R1)**'s customer-facing interface for the Green customer:
+Build an **EVPN-VPWS** service for the **Red** customer between **R14 and R16**, in parallel with the AToM circuit:
+1. **EVI = 400**.
+2. **Attachment circuit identifier = 12** (local AC on each side; source/target AC-ID per EVPN-VPWS).
+3. VLAN100 attachment circuit (separate subinterface from the Task 2.3 AToM circuit).
+4. Transport: use the **MPLS** label path for the AS65200 PEs (R14/R16 are AS65200). (If you later relocate the service onto AS65300 SRv6 PEs, bind it to the SRv6 locator instead.)
+5. Also enable an **EVPN multipoint (ELAN)** instance for Red across R27/R28/R29 attachment points to contrast P2P VPWS vs multipoint EVPN.
 
-1. Build a **parent policy-map** applying a **shaper** (e.g., 100 Mbps) at the interface/port level.
-2. Nest a **child policy-map** under the parent with per-class **policing** (CIR/PIR) for at least 3 traffic classes (voice, business-critical, best-effort), matched on DSCP.
-3. Apply **WRED** on the best-effort/bulk class queue to manage congestion before hard-drop, using DSCP-based WRED profiles (not just a single min/max threshold).
-4. **Remark DSCP** on ingress for one class (e.g., remark untrusted CE markings for "business-critical" traffic to AF31) before the egress hierarchical policy is applied.
-5. Apply the two-level (parent/child) `service-policy output` hierarchy on the physical or bundle interface.
+Verify: `show evpn evi`, `show evpn evi vpn-id 400 detail`, `show l2vpn xconnect group ... detail`, `show bgp l2vpn evpn`, compare MAC learning behavior vs the AToM circuit.
 
-Verify: `show policy-map interface <intf>`, `show policy-map interface <intf> output class <name>` (confirm WRED drop counters, shaped rate, policed rate), `show qos interface`.
+### Task 2.5 — Multicast VPN (mVPN Profile 0, Yellow, AS65300)
+
+Deploy **Default-MDT mVPN (Profile 0 / Rosen GRE-less, SSM)** for the **Yellow** VRF in AS65300:
+1. **PIM-SSM** in the core, SSM group range **239.232.0.0/16**.
+2. **BGP auto-discovery** (MVPN SAFI) between AS65300 PEs via R30.
+3. **Default MDT = 239.232.0.1**.
+4. **Data MDT** range **239.232.100.0/24** (switch high-rate (S,G) streams onto a data MDT).
+5. Yellow VRF PIM enabled toward the Yellow CEs (R24/R26).
+
+Verify: `show mrib vrf YELLOW route`, `show pim vrf YELLOW neighbor`, `show mvpn vrf YELLOW database`, `show bgp ipv4 mvpn`, `show mfib vrf YELLOW` (data-MDT switchover).
+
+### Task 2.6 — Hierarchical QoS (egress on R6 ASBR)
+
+Build an **egress H-QoS** policy on **R6** (AS65100 ASBR), applied toward the inter-AS / CE direction:
+1. **Parent shaper = 80%** of interface rate.
+2. **Voice (EF) = 20% guaranteed** bandwidth (priority / `bandwidth percent 20`) within the shaped parent.
+3. **Police = 50%** on a specific CE-sourced traffic class.
+4. **DSCP remarking** on a nominated class (e.g., remark scavenger/best-effort on ingress-classified CE traffic).
+5. Three-level hierarchy: class policy nested under a parent shaping policy (`service-policy` inside `policy-map`).
+
+Verify: `show policy-map interface <R6-egress>`, `show qos interface <...> output`, offered-load test confirming shape/priority/police counters increment.
 
 ---
 
-## Section 3 — Access Connectivity (25%)
+## Section 3 — Access Connectivity (10%)
 
-### Task 3.1 — Site of Origin (SoO) for dual-homed CE
+### Task 3.1 — SoO loop prevention (dual-homed Yellow CE R24)
 
-The **Blue** customer's CE (R25 in the topology reference) is dual-homed into two PEs (per the base topology, R25 connects into both Garnet and Gold). Configure **Site of Origin (SoO)** extended community on both PEs facing R25 so that a route learned from R25 via PE-A is not re-advertised back toward R25 via PE-B (preventing a routing loop back to the originating site across the dual-homed CE).
+**R24** (Yellow, AS65024) is **dual-homed** to **R20 and R22** in AS65300. Routes a CE site originates can be re-learned via the second PE, risking a routing loop / sub-optimal path.
+1. Assign a common **Site-of-Origin extended community** to the R24 site on **both** R20 and R22 PE-CE sessions.
+2. Confirm SoO-tagged routes are **not re-advertised back** toward the same site (loop broken) and `as-override` interaction is correct.
 
-1. Define a unique SoO extended community value (e.g., `65200:2500`) and apply it inbound on both PEs' VRF neighbor policy toward R25.
-2. Confirm outbound route-policy on each PE rejects any VPNv4 route carrying that site's own SoO value before re-advertising it toward the other PE's CE-facing peering.
-3. Simulate the loop condition (temporarily removing SoO) to prove the problem exists, then re-apply SoO and confirm it's resolved.
+Verify: `show bgp vrf YELLOW <R24-prefix> detail` (SoO ext-comm present), confirm R24 does not receive its own prefix back from the second PE.
 
-Verify: `show bgp vpnv4 unicast vrf <name> <prefix> detail` (confirm SoO extended-community present and used as a filter), `show route vrf <name>` for routing-loop absence.
+### Task 3.2 — 6PE / 6VPE (AS65100 + Blue IPv6)
 
-### Task 3.2 — Troubleshooting MCQs: EVPN-VPWS ESI, MC-LAG topology support
+1. **6PE** — carry customer/global **IPv6 over the IPv4 MPLS core** in AS65100 (R1–R8): enable `address-family ipv6 labeled-unicast`, IPv6 global prefixes reachable across the IPv4 LSP.
+2. **6VPE** — IPv6 L3VPN for the **Blue** customer: enable VPNv6 AF on the Blue PEs, VRF BLUE IPv6 AF, PE-CE IPv6 eBGP (AS65025) for R25/R32.
 
-Answer the following as multiple-choice/short-answer troubleshooting items (reference the EVPN-VPWS service built in Task 2.1 and a hypothetical MC-LAG-attached CE):
-
-1. **MCQ:** An EVPN-VPWS service with a **single-active, non-zero ESI** configured on both PE access interfaces is forwarding duplicate frames to the dual-homed CE. Which ESI/DF-election misconfiguration is the most likely cause: (a) ESI value mismatched between the two PEs, (b) DF election not run because ESI is type-0 (all zero) instead of a proper type-1/3 ESI, (c) EVI mismatch, (d) EVPN RT mismatch? Justify your answer and identify the correct `show` command to confirm ESI/DF state.
-2. **MCQ:** A customer wants **MC-LAG** (multi-chassis LACP) toward a pair of Garnet PEs for a VPWS-style point-to-point access circuit, but the design review flags that **MC-LAG and EVPN-VPWS single-active multi-homing are not simultaneously required** for this topology on IOS-XR. Explain which multi-homing mechanism (MC-LAG vs. EVPN all-active/single-active) is topology-appropriate for: (a) a pair of PEs each independently uplinked without a dedicated ICCP/ICL link between them, versus (b) two PE chassis cabled with a dedicated inter-chassis link capable of running ICCP. Identify which of the two scenarios matches the EVE-NG lab's PE pairing (R14/R15 Garnet dual-homed CE) and why EVPN multi-homing — not MC-LAG — is the correct choice there.
+Verify: `show bgp ipv6 labeled-unicast`, `show bgp vpnv6 unicast vrf BLUE`, `show route vrf BLUE ipv6`, end-to-end IPv6 ping across the IPv4 MPLS core.
 
 ---
 
 ## Section 4 — High Availability (10%)
 
-### Task 4.1 — SRv6 backup paths with `spf prefix-priority critical`
+### Task 4.1 — BFD for eBGP (R6 ↔ R20)
 
-In the Gold AS 65300 SRv6 core:
+On the **R6 ↔ R20** inter-AS eBGP session (10.6.20.0/24, Option B boundary):
+1. Enable **BFD** for the eBGP neighbor.
+2. **min-interval = 800 ms** (tx/rx).
+3. **multiplier = 4**.
+4. Tie BGP fast-fallover to BFD session state.
 
-1. Mark the loopback prefixes of R22 and R23 (the PEs carrying the highest-priority VPN services) with **`spf prefix-priority critical`** under IS-IS so TI-LFA backup-path computation for those prefixes is **computed first**, ahead of lower-priority prefixes, during SPF — bounding worst-case backup-path convergence time for the most important services when the IGP is under CPU pressure from a large topology change.
-2. Confirm TI-LFA backup SIDs are pre-installed for R22/R23's loopbacks and validate with a controlled link failure that those prefixes converge before lower-priority prefixes in the same failure domain.
+Verify: `show bfd session detail` (interval 800 ms, mult 4, state UP), `show bgp neighbor <peer>` (BFD enabled), fail a link and confirm sub-second BGP teardown.
 
-Verify: `show isis fast-reroute ti-lfa`, `show isis spf-log` (confirm prioritized prefixes compute first), `show segment-routing srv6 sid` backup-path state.
+### Task 4.2 — SRv6 backup paths / prefix-priority (AS65300)
 
-### Task 4.2 — BFD for BGP between ASBRs
+In AS65300 IS-IS/SRv6:
+1. **`spf prefix-priority critical tag 200`** — prioritize SPF installation of locator prefixes tagged **200** (from Task 1.6).
+2. **`fast-reroute per-prefix priority-limit critical`** — compute FRR backups preferentially for critical-tagged (locator) prefixes.
+3. Confirm SRv6 locator prefixes get protected first and converge ahead of lower-priority prefixes.
 
-1. Enable **BFD** (sub-second, e.g., 150ms × 3 multiplier) on the inter-AS link(s) between R6↔R12 and/or R12↔R21 (per topology reference's inter-AS links).
-2. Attach BFD to the eBGP session on each ASBR (`neighbor <addr> / bfd fast-detect`), confirm the BFD session is `UP` and independently tied to the BGP neighbor so a data-plane link failure tears down BGP in milliseconds rather than waiting on BGP's own hold-timer.
-3. Fail the physical/sub-interface and measure BGP teardown time with BFD enabled vs. disabled (temporarily) to show the convergence improvement.
-
-Verify: `show bfd session`, `show bgp neighbor <addr> | include BFD`, timestamped `show logging` around the simulated failure.
-
-### Task 4.3 — OSPF NSF troubleshooting MCQ
-
-**MCQ/short-answer:** During a planned RP/process restart on **R15** (Garnet OSPF PE), neighbors briefly flush R15's LSAs and the network experiences a short outage, despite **NSF (Non-Stop Forwarding) / Graceful Restart** being configured. Identify the most likely root cause among: (a) NSF is enabled on R15 but the neighboring routers (R11, R19) do not support **OSPF graceful-restart helper mode**, so they age out R15's LSAs on the normal dead-interval instead of extending it, (b) NSF requires BFD and BFD was not configured, (c) NSF only works with OSPFv3, not OSPFv2, (d) the restart exceeded the grace-period LSA's advertised duration. Explain which `show` command confirms whether a neighbor is acting as a **helper**, and what config change on R11/R19 (if any) resolves the issue.
+Verify: `show isis fast-reroute summary`, `show route <locator> detail` (backup path present), `show isis spf-log`, confirm tag-200 prefixes install first.
 
 ---
 
 ## Section 5 — Security (10%)
 
-### Task 5.1 — Management plane protection: control-plane inband, selective SSH/SNMP, deny Telnet/XML/TFTP
+### Task 5.1 — Management Plane Protection (MPP, control-plane inband)
 
-On every PE and ASBR (minimum: R1, R6, R12, R14, R20):
+On representative routers (at minimum one PE and one RR per AS):
+1. Configure **`control-plane management-plane inband`** MPP.
+2. **Allow SSH and SNMP** only from specific management subnets (define the allowed inband interfaces + peer-filter ACL for the management source subnet).
+3. **Deny telnet, XML agent, and TFTP** inbound on the management plane.
 
-1. Configure **Management Plane Protection** using **`control-plane management-plane protection inband`** so management-destined traffic (SSH, SNMP, NETCONF/XML, etc.) is restricted to an explicit allow-list of interfaces/peers rather than being reachable from any interface by default.
-2. Under the inband policy, **permit SSH and SNMP** only from a defined management subnet (e.g., `10.255.0.0/24`) via an ACL referenced in the `allow` stanza for those protocols.
-3. **Explicitly deny Telnet, XML-agent (NETCONF/XML), and TFTP** in the inband policy (do not just omit them — add explicit deny peer-filters) so even a misconfigured ACL elsewhere cannot accidentally permit them.
-4. Confirm the policy does not affect transit/data-plane traffic — only self-destined management protocols.
+Verify: `show management-plane inband interface all`, confirm SSH/SNMP permitted from the management subnet and telnet/XML/TFTP refused.
 
-Verify: `show control-plane-protection management inband counters`, `show run control-plane`, attempt (and expect failure of) a Telnet session from outside the allowed subnet, confirm SSH/SNMP succeed from the allowed subnet.
+### Task 5.2 — IS-IS authentication (keychain HMAC-MD5)
 
-### Task 5.2 — IS-IS authentication with keychain: HMAC-MD5, infinite lifetime, hello + LSP password
+Complete the keychain referenced in Task 1.1 on **all** IS-IS instances (AS65100 R1–R8, AS65300 R20/R21/R22/R23/R30):
+1. Build the **keychain** with an **HMAC-MD5** key, key-id, and accept/send lifetimes.
+2. Apply **hello authentication** and **LSP authentication** via the **flex-CLI configuration groups** from Task 1.1 (do not configure per-interface by hand — carry it in the group).
 
-Complete the keychain reference started in Task 1.1:
+Verify: `show key chain`, `show isis adjacency detail` (authentication), `show isis database verbose` (LSP auth), mismatch test confirms adjacency drop.
 
-1. Define `key chain ISIS-KEY` with a single `key 1`, **`cryptographic-algorithm HMAC-MD5`**, a configured key-string, and an **infinite send/accept lifetime** (no start/end time restriction — always valid).
-2. Apply the keychain for **both** hello authentication (`hello-password keychain ISIS-KEY`) and **LSP authentication** (`lsp-password keychain ISIS-KEY`) under the IS-IS Level-2 interface/instance configuration on all Emerald core routers (R1–R8).
-3. Confirm neighbors using a mismatched or missing keychain fail to form adjacency (test by deliberately breaking one router's key, observing adjacency drop, then restoring it).
-4. Confirm LSPs generated without the correct password are rejected/flagged by neighbors (`show isis database` should not show a corrupted/unauthenticated LSP being accepted).
+### Task 5.3 — BGP security
 
-Verify: `show key chain ISIS-KEY`, `show isis interface detail` (confirm HMAC-MD5 auth state per interface), `show isis adjacency detail`, induced-failure test as described above.
+On all BGP sessions:
+1. **MD5 / TCP-AO password** on every iBGP and eBGP neighbor.
+2. **GTSM** (`ttl-security hops 1`) on all **eBGP** sessions (R5↔R11, R6↔R12, R6↔R20, R12↔R21, and PE-CE eBGP).
+3. **`maximum-prefix`** limits on all PE-CE and inter-AS sessions (with warning threshold).
+
+Verify: `show bgp neighbor <...>` (password set, TTL security, max-prefix), confirm a spoofed-TTL / over-limit peer is rejected.
 
 ---
 
 ## Section 6 — Automation (5%)
 
-### Task 6.1 — Streaming telemetry troubleshooting: gRPC TLS, TPA address, port
+### Task 6.1 — Streaming telemetry (gRPC dial-out)
 
-**Troubleshooting scenario:** A streaming telemetry subscription from **R14** to a collector is configured but no data arrives at the collector.
+On one AS65300 SRv6 PE (e.g., R22):
+1. **gRPC dial-out** model-driven telemetry (MDT) streaming **interface statistics** (sensor-path for `Cisco-IOS-XR-infra-statsd-oper` interface counters).
+2. Configure a **TPA (Third-Party Application) source/management address** for the telemetry transport.
+3. **TLS** on the gRPC session (certificate/trustpoint).
+4. Destination-group, sensor-group, and subscription with a sample-interval.
 
-1. Review the telemetry destination-group config: `telemetry model-driven / destination-group <name> / address-family ipv4 <collector-ip> port <port>`. Identify whether the **gRPC with TLS** transport is correctly matched between router and collector (mismatched TLS vs. no-TLS is the most common root cause for a dial-out session that never establishes).
-2. Confirm the **TPA (Third-Party/Transport) source address** — `source-address <ip>` under the destination-group — is bound to a reachable, correctly-routed interface (common failure: TPA address bound to a loopback not advertised toward the collector's management network, or bound to the wrong VRF).
-3. Confirm the configured **port** on the router's destination-group matches the port the collector is actually listening on, and that this port is permitted by the Task 5.1 management-plane-protection inband policy (a telemetry session can silently fail if MPP denies the gRPC port).
-4. Walk through the correct verification sequence to isolate which of the three (TLS mismatch, TPA/VRF, port/ACL) is the actual fault in a given broken scenario.
+Verify: `show telemetry model-driven subscription`, `show telemetry model-driven destination`, `show grpc`, confirm the collector receives interface-stats samples.
 
-Verify: `show telemetry model-driven destination-group <name>`, `show telemetry model-driven subscription <name>`, `show grpc status`, `show tpa`.
+### Task 6.2 — NSO service deployment
 
-### Task 6.2 — NSO: onboard device, sync, apply template, create L3VPN service
+Using Cisco **NSO**:
+1. **Onboard** an IOS-XRv device (R14) into NSO (add device, auth-group, device-type cli/netconf).
+2. **Sync-from** the device.
+3. Apply an **XR-base template** (baseline config template).
+4. Deploy an **L3VPN service** instance for the **Red** customer via an NSO service package (service model → device config push).
 
-Using Cisco NSO against the Garnet PEs:
-
-1. **Onboard** R14 and R15 as NSO managed devices (NED for IOS-XR), including authgroup and connection parameters.
-2. Run **`sync-from`** on both devices to pull their current running configuration into NSO's CDB before making any changes.
-3. Apply a **device template** that pushes a baseline config snippet (e.g., a loopback description or SNMP community) to confirm template-based push works before attempting a service.
-4. Create and deploy an **L3VPN service package** instance in NSO that provisions a new customer VRF across R14 and R15 (VRF name, RD/RT, PE-CE interface, routing protocol) and commit it, confirming NSO renders and pushes the correct native IOS-XR config to both devices.
-
-Verify (NSO CLI or web UI): `show devices device <name> sync-from`, `show configuration` dry-run before commit, `show devices device <name>` operational state, confirm the resulting VRF config appears correctly on both R14 and R15 via `show running-config vrf <name>` on the routers themselves.
-
-### Task 6.3 — NSO troubleshooting: identify out-of-sync device, re-deploy service
-
-**Troubleshooting scenario:** Someone made a manual CLI change directly on **R15** outside of NSO, and the L3VPN service from Task 6.2 is now reporting a `check-sync` discrepancy.
-
-1. Run **`devices device R15 check-sync`** (or NSO's compliance report) to confirm and characterize the out-of-sync condition between NSO's CDB and the device's actual running config.
-2. Decide and justify the correct remediation path: either `sync-from` (if the manual change should be preserved and NSO should learn it) or `sync-to`/service **re-deploy** (if NSO's intended state should overwrite the manual change) — explain the tradeoff for each in a production SP context.
-3. Re-deploy the L3VPN service (`request re-deploy`) and confirm the service's reported state returns to in-sync, with the manual drift corrected (or intentionally absorbed, per your Step 2 decision).
-
-Verify: `show devices device R15 check-sync`, `show devices commit-queue`, post-remediation `show devices device R15 check-sync` returns in-sync, and `show running-config vrf <name>` on R15 matches the NSO-intended state.
+Verify (NSO CLI): `show devices device R14 sync-from`, `commit dry-run`, `show running-config services`, confirm the Red L3VPN service maps to device config on R14.
 
 ---
 
-## Appendix — Section Weighting Reference
+## Completion Checklist
 
 | Section | Weight | Tasks |
-|---|---|---|
-| 1. Core Network Infrastructure | 25% | 1.1–1.7 |
-| 2. Architecture and Services | 25% | 2.1–2.4 |
-| 3. Access Connectivity | 25% | 3.1–3.2 |
-| 4. High Availability | 10% | 4.1–4.3 |
-| 5. Security | 10% | 5.1–5.2 |
-| 6. Automation | 5% | 6.1–6.3 |
+|---------|--------|-------|
+| 1 — Core Network Infrastructure | 25% | 1.1 IS-IS flex-CLI · 1.2 OSPF · 1.3 LDP · 1.4 BGP-LU · 1.5 SR-MPLS · 1.6 SRv6 · 1.7 SR-TE · 1.8 SR-ODN · 1.9 Flex-Algo |
+| 2 — Architecture & Services | 25% | 2.1 L3VPN · 2.2 Inter-AS A+B · 2.3 AToM/VPWS · 2.4 EVPN-VPWS · 2.5 mVPN · 2.6 H-QoS |
+| 3 — Access Connectivity | 10% | 3.1 SoO · 3.2 6PE/6VPE |
+| 4 — High Availability | 10% | 4.1 BFD · 4.2 SRv6 prefix-priority FRR |
+| 5 — Security | 10% | 5.1 MPP · 5.2 IS-IS keychain · 5.3 BGP security |
+| 6 — Automation | 5% | 6.1 gRPC telemetry · 6.2 NSO |
 
-> This workbook intentionally sequences dependencies: Section 1 (IS-IS, SR, SRv6, Flex-Algo) must be functional before Section 2's VPN/EVPN services ride on it; Section 1.4/1.6's color-based steering is reused by Section 2.4's QoS-adjacent traffic classes conceptually; Section 5.2's keychain builds directly on the stub left in Task 1.1.
+**Workflow:** snapshot the EVE-NG lab before each section; complete tasks only (derive the IOS-XR CLI yourself); verify each task with the listed `show` commands before advancing. Solutions live in `LAB3_CCIE_SP_Full_Solutions.md`.

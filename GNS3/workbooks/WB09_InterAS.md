@@ -1,4 +1,4 @@
-# WB09 — Inter-AS MPLS L3VPN (Options A / B / C)
+# WB09 — Inter-AS MPLS L3VPN (Options A & B)
 
 **Platform:** Cisco 7200 (C7200-ADVENTERPRISEK9-M), IOS 15.2(4)M11
 **Scope:** Inter-AS VPNv4 across AS 65100 (IS-IS), AS 65200 (OSPF), AS 65300 (IS-IS)
@@ -6,12 +6,16 @@
 **Prerequisite:** WB00-WB07 complete (per-AS IGP, LDP, intra-AS L3VPN, RRs all working)
 
 > **Format:** Tasks only. No configurations provided.
-> Work **progressively** — each option is independent; verify before advancing.
-> **Snapshot** before and after each option so you can isolate issues.
+> Work **progressively** — each section builds on the previous; verify before advancing.
+> **Snapshot** before and after each section so you can isolate issues.
+
+> **Note:** Inter-AS Option C (BGP-LU + multihop VPNv4) is not supported on IOS classic 7200/Dynamips
+> due to label allocation limitations on route reflectors. Option C will be practiced on EVE-NG (IOS-XR).
+> This workbook covers Options A and B, which provide full inter-AS connectivity across all 3 ASes.
 
 > **ASBR / RR reference:**
 > AS65100 — ASBRs R5, R6; RRs R7, R8.
-> AS65200 — ASBR R12; RR R19.
+> AS65200 — ASBR R12; RR R19. (R11 is a P router but serves as Option A ASBR for the R5↔R11 link)
 > AS65300 — ASBRs R20, R21; RR R30.
 > Inter-AS links: R5↔R11, R6↔R12 (65100↔65200); R6↔R20 (65100↔65300); R12↔R21 (65200↔65300).
 
@@ -21,145 +25,117 @@
 
 - [ ] Each AS IGP converged independently (`show isis nei` / `show ip ospf nei`)
 - [ ] Intra-AS LDP + VPNv4 working inside each AS
-- [ ] No inter-AS routing exists yet (clean start)
+- [ ] Intra-AS L3VPN verified (Green/Yellow/Blue VRFs per WB05)
 - [ ] **Snapshot:** `WB09-00-baseline`
 
 ---
 
-## Section 1 — Inter-AS Option A (back-to-back VRF) [5 points]
+## Section 1 — Inter-AS Option A: Green across AS65100 ↔ AS65200 [5 points]
 
-Customer **Green** across **AS65100 ↔ AS65200**, ASBRs **R5 ↔ R11**. Validate CE9 (AS65100) ↔ CE18 (AS65200).
+**Link:** R5 (g1/0) ↔ R11 (g1/0) — `10.5.11.0/24`
+**Customer:** Green (CE9/CE10 in AS65100 ↔ CE17/CE18 in AS65200)
+**Goal:** End-to-end Green VPN reachability using back-to-back VRF on the ASBRs.
 
-- [ ] **Task 1.1 [1 point]** — On R5 and R11 create a VRF for Green (matching RD/RT policy per existing WB design).
-- [ ] **Task 1.2 [2 points]** — On the R5↔R11 link (R5 g1/0 ↔ R11 g1/0) create a **per-VRF sub-interface** (dot1q) placed into the Green VRF on both sides. Option A treats the ASBR peer as a plain CE.
-- [ ] **Task 1.3 [1 point]** — Run a **per-VRF eBGP (or static/IGP) PE-CE-style session** between R5 and R11 inside the Green VRF over that sub-interface to exchange Green routes. (No VPNv4, no label exchange across the boundary — this is the Option A hallmark.)
-- [ ] **Task 1.4 [1 point]** — Ensure Green routes learned from the far AS are redistributed into each side's VPNv4 so they reach the respective PEs.
-- [ ] **Task 1.5 [0 points — verification]** — Verify CE9 (behind AS65100) reaches CE18 (behind AS65200) and back.
+- [ ] **Task 1.1 [1 point]** — On R5 create VRF GREEN (matching RD/RT policy from WB05). On R11 create VRF GREEN (if not already present as a P router, R11 now acts as an Option A ASBR for this link).
+- [ ] **Task 1.2 [2 points]** — On the R5↔R11 physical link, create a **per-VRF sub-interface** with dot1q encapsulation placed into VRF GREEN on both sides. Remove the existing global IP from the physical interface. Choose a VLAN tag and new /30 or /24 subnet for the VRF sub-interface.
+- [ ] **Task 1.3 [1 point]** — Configure a **per-VRF eBGP session** between R5 and R11 inside VRF GREEN over the sub-interface. Exchange Green customer routes across the boundary. No VPNv4, no label exchange — plain IPv4 inside the VRF.
+- [ ] **Task 1.4 [1 point]** — Ensure Green routes learned from the far AS via the per-VRF eBGP are redistributed into each side's VPNv4 table so they reach the PEs (R1/R2 in AS65100, R15/R16 in AS65200) via the RRs.
+- [ ] **Task 1.5 [0 points — verification]** — Verify end-to-end: CE9 (AS65100) ↔ CE18 (AS65200), CE10 ↔ CE17. Confirm no MPLS label on the R5↔R11 ASBR link (IP forwarding per-VRF only).
 
 **Verify / Snapshot**
-- [ ] `show ip route vrf GREEN` on R5 and R11 — far-AS prefixes present
-- [ ] `show ip bgp vpnv4 vrf GREEN` on both ASBRs
-- [ ] End-to-end: CE9 ping/traceroute CE18 (both directions)
-- [ ] Confirm **no** label on the ASBR-ASBR link (IP forwarding per-VRF)
+- [ ] `show ip route vrf GREEN` on R5 and R11 — far-AS Green prefixes present
+- [ ] `show bgp vpnv4 unicast vrf GREEN` on R5 and R11
+- [ ] End-to-end: CE9 ping CE18, CE10 ping CE17 (both directions)
+- [ ] Confirm **no** label on the R5↔R11 link (`traceroute` shows IP hop, not MPLS)
 - [ ] **Snapshot:** `WB09-01-optionA`
 
 ---
 
-## Section 2 — Inter-AS Option B (VPNv4 eBGP between ASBRs) [5 points]
+## Section 2 — Inter-AS Option B: Yellow + Blue across AS65200 ↔ AS65300 [5 points]
 
-Customer **Yellow** across **AS65200 ↔ AS65300**, ASBRs **R12 ↔ R21**. Validate R26 (Yellow, AS65200) ↔ R24 (Yellow, AS65300).
+**Link:** R12 (f3/0) ↔ R21 (f3/0) — `20.12.21.0/24`
+**Customers:** Yellow (R26 AS65200 ↔ R24 AS65300) + Blue (R14/R25 AS65200 ↔ R21/R23/R25 AS65300)
+**Goal:** Full VPNv4 exchange between AS65200 and AS65300 for all shared customers.
 
-> Note: topology inter-AS link for 65200↔65300 is R12 g? ↔ R21 (20.12.21.0/24). The task text references "R6↔R12" generically; use the **R12↔R21** link that actually joins AS65200 and AS65300.
-
-- [ ] **Task 2.1 [1 point]** — Establish a **VPNv4 eBGP** session directly between ASBRs R12 and R21 (address-family vpnv4).
-- [ ] **Task 2.2 [2 points]** — Configure **next-hop-self** so the ASBR sets itself as next-hop for VPNv4 routes sent to its own IBGP, and ensure the ASBR-ASBR link has a label path (the ASBRs exchange labeled VPNv4; the local IGP/LDP resolves the next-hop).
-- [ ] **Task 2.3 [2 points]** — Configure **RT retention** on the ASBRs (`no bgp default route-target filter`, i.e. retain all RTs) so VPNv4 routes are not dropped for lack of a locally-imported RT.
-- [ ] **Task 2.4 [0 points — verification]** — Confirm labeled VPNv4 is exchanged across R12↔R21 (two-label model, with the ASBR as the next-hop boundary).
-- [ ] **Task 2.5 [0 points — verification]** — Verify R26 (AS65200) ↔ R24 (AS65300) end to end.
+- [ ] **Task 2.1 [1 point]** — Establish a **VPNv4 eBGP** session between R12 (AS65200) and R21 (AS65300) under `address-family vpnv4`. Use the directly connected inter-AS addresses.
+- [ ] **Task 2.2 [1 point]** — Configure **`next-hop-self`** on both ASBRs toward their respective iBGP peers (RRs) under VPNv4 so the remote ASBR's address is replaced with the local ASBR's loopback — ensuring iBGP peers can resolve the VPNv4 next-hop via their local IGP.
+- [ ] **Task 2.3 [1 point]** — Configure **RT retention** on both R12 and R21 (`no bgp default route-target filter`) so VPNv4 routes for customers not locally present on the ASBR are retained and passed through.
+- [ ] **Task 2.4 [1 point]** — Ensure **`send-community extended`** is configured on the VPNv4 eBGP session so RTs cross the AS boundary.
+- [ ] **Task 2.5 [1 point]** — On the receiving PEs, add **import RTs** for the far-AS customer routes. For example: R22 (AS65300, VRF YELLOW) must import RT 65200:200 to accept Yellow routes from AS65200. R16 (AS65200, VRF YELLOW) must import RT 65300:300 to accept Yellow routes from AS65300. Same for Blue across both ASes.
+- [ ] **Task 2.6 [0 points — verification]** — Verify Yellow end-to-end: R26 (AS65200) ↔ R24 (AS65300). Verify Blue end-to-end between AS65200 and AS65300 PEs.
 
 **Verify / Snapshot**
-- [ ] `show ip bgp vpnv4 all` on R12/R21 — far-AS VPNv4 with next-hop = peer ASBR
-- [ ] `show ip bgp vpnv4 all labels` — label present across the boundary
-- [ ] `show mpls forwarding-table` on ASBR — VPNv4 label swap
-- [ ] Confirm RT-retain working (routes present even without local import)
-- [ ] End-to-end: R26 ↔ R24
+- [ ] `show bgp vpnv4 unicast all` on R12/R21 — far-AS VPNv4 with correct RTs
+- [ ] `show bgp vpnv4 unicast all summary` — VPNv4 eBGP session UP, PfxRcvd > 0
+- [ ] `show mpls forwarding-table` on ASBR — VPNv4 label swap entries
+- [ ] RT-retain confirmed: `show bgp vpnv4 unicast all` shows routes for non-local VRFs
+- [ ] End-to-end: R26 ↔ R24 (Yellow), Blue PEs across AS65200 ↔ AS65300
 - [ ] **Snapshot:** `WB09-02-optionB`
 
 ---
 
-## Section 3 — Inter-AS Option C (BGP-LU + multihop VPNv4 RR-to-RR) [5 points]
+## Section 3 — Full Inter-AS Connectivity: All Customers Across All 3 ASes [8 points]
 
-Customer **Blue** across **AS65100 ↔ AS65300**, boundary **R6 ↔ R20**. Multihop VPNv4 between RRs **R7/R8 (AS65100) ↔ R30 (AS65300)**. Validate R32 (Blue, AS65100) ↔ R25 (Blue, AS65300).
+**Goal:** Complete end-to-end reachability for ALL customers across ALL three ASes using a combination of Option A and Option B on the available inter-AS links.
 
-- [ ] **Task 3.1 [2 points]** — On the ASBRs R6 and R20 enable **BGP labeled-unicast (BGP-LU, send-label)** for IPv4 so the two ASes exchange *labeled loopback (/32 PE+RR) reachability* across the boundary. This builds an end-to-end LSP for the remote RR/PE loopbacks.
-- [ ] **Task 3.2 [1 point]** — Redistribute (controlled) the remote PE/RR loopbacks into each AS and advertise them with labels via BGP-LU so an end-to-end label path exists from AS65100 PEs to AS65300 PEs.
-- [ ] **Task 3.3 [1 point]** — Build a **multihop eBGP VPNv4** session between RR **R7/R8 (AS65100)** and RR **R30 (AS65300)** (ebgp-multihop, update-source Loopback0). VPNv4 routes are exchanged RR-to-RR; the ASBRs carry **no VPNv4 state** (Option C hallmark).
-- [ ] **Task 3.4 [1 point]** — Keep next-hop **unchanged** on the multihop VPNv4 session (remote PE loopback stays as next-hop) and ensure that next-hop is reachable via the BGP-LU LSP from Task 3.1.
-- [ ] **Task 3.5 [0 points — verification]** — Verify an **end-to-end labeled path**: ingress PE label stack = VPN label + BGP-LU transport label(s). Validate R32 ↔ R25.
+**Design:**
+```
+R5 ↔ R11  (65100↔65200): Option A — already configured in Section 1 (Green only)
+R6 ↔ R12  (65100↔65200): Option A — per-VRF sub-interfaces for Green, Yellow, Blue (3 VRFs)
+R6 ↔ R20  (65100↔65300): Option B — VPNv4 eBGP for all customers
+R12 ↔ R21 (65200↔65300): Option B — already configured in Section 2 (Yellow + Blue)
+```
 
-**Verify / Snapshot**
-- [ ] `show ip bgp labels` / `show bgp ipv4 unicast labels` on ASBRs — labeled /32s crossing
-- [ ] `show ip bgp vpnv4 all summary` on R7/R8/R30 — multihop VPNv4 session UP
-- [ ] `show ip bgp vpnv4 all <remote-PE-prefix>` — next-hop = remote PE loopback, resolved via BGP-LU
-- [ ] ASBR R6/R20: confirm **no** VPNv4 table entries
-- [ ] `traceroute`/label trace R32 → R25 shows full label stack
-- [ ] **Snapshot:** `WB09-03-optionC`
-
----
-
-## Section 4 — Multi-AS Blue (spans 3 ASes, Option C stitching) [5 points]
-
-Customer **Blue** full reach: **R32 (AS65100) ↔ R25 (AS65200) ↔ R25 (AS65300)**. Stitch Option C across all three ASes using BGP-LU.
-
-- [ ] **Task 4.1 [2 points]** — Extend BGP-LU so AS65200 participates: labeled transport reachability must exist 65100↔65200 (R5/R6↔R11/R12) **and** 65200↔65300 (R12↔R21), giving an unbroken LSP across all three cores.
-- [ ] **Task 4.2 [2 points]** — Establish the multihop VPNv4 relationships so Blue VPNv4 routes propagate across all three ASes (RR mesh / chained multihop as appropriate: R7/R8 ↔ R19 ↔ R30, or direct multihop with next-hop reachability through BGP-LU).
-- [ ] **Task 4.3 [0 points — verification]** — Confirm Blue prefixes from R32 (AS65100) and both R25 attachments (AS65200 + AS65300) are mutually reachable.
-- [ ] **Task 4.4 [1 point]** — Validate the BGP-LU label stitching at each AS boundary (label swap of the transport label at each ASBR, VPN label preserved end-to-end).
+- [ ] **Task 3.1 [2 points]** — On R6 ↔ R12, configure **Option A** with three per-VRF sub-interfaces (dot1q) for GREEN, YELLOW, and BLUE. Remove the global IP from the physical interface. Create per-VRF eBGP sessions between R6 and R12 inside each VRF. This provides a second 65100↔65200 path with per-VRF isolation and carries all three customers.
+- [ ] **Task 3.2 [2 points]** — On R6 ↔ R20, establish a **VPNv4 eBGP** session (Option B). Configure next-hop-self, send-community extended, and RT retention. This connects AS65100 directly to AS65300 for Blue, Yellow, and Green.
+- [ ] **Task 3.3 [2 points]** — Update **import RTs** on all PEs across all three ASes so each customer VRF imports the RTs from every AS where that customer exists:
+  - Green PEs: import RT 65100:100 + 65200:100
+  - Yellow PEs: import RT 65200:200 + 65300:300
+  - Blue PEs: import RT 65100:25 + 65200:25 + 65300:25
+- [ ] **Task 3.4 [2 points]** — Verify **full end-to-end reachability** for each customer:
+  - **Green:** CE9 (AS65100) ↔ CE17 (AS65200, OSPF PE-CE) ↔ CE18 (AS65200)
+  - **Yellow:** R24 (AS65300) ↔ R26 (AS65200) — and via transit if Yellow exists in AS65100
+  - **Blue:** R32 (AS65100) ↔ R25/R14 (AS65200) ↔ R25/R21/R23 (AS65300) — Blue spans all 3 ASes
 
 **Verify / Snapshot**
-- [ ] `show ip bgp vpnv4 all` — Blue prefixes from all 3 ASes
-- [ ] `show ip bgp labels` at each ASBR — transport label swapped at boundaries
-- [ ] End-to-end traceroute R32 → R25(65300) transiting all three cores
-- [ ] **Snapshot:** `WB09-04-multiAS-blue`
+- [ ] `show bgp vpnv4 unicast all summary` on ALL ASBRs — all VPNv4 sessions UP
+- [ ] `show bgp vpnv4 unicast vrf GREEN` on PEs in both ASes — far-AS prefixes imported
+- [ ] `show bgp vpnv4 unicast vrf YELLOW` on R16 and R22 — cross-AS prefixes present
+- [ ] `show bgp vpnv4 unicast vrf BLUE` on R1, R14, R21, R23 — prefixes from all 3 ASes
+- [ ] End-to-end ping/traceroute for each customer across AS boundaries
+- [ ] Confirm label stacks on traceroute (VPN label + LDP transport within each AS, IP at Option A boundary)
+- [ ] **Snapshot:** `WB09-03-full-connectivity`
 
 ---
 
-## Section 5 — Compare Options A / B / C (written analysis) [0 points — written analysis]
+## Section 4 — Cross-AS OSPF VPN (Green OSPF site R17) [5 points]
 
-Capture in the workbook (short written answers, not config):
+After inter-AS is working, validate the **OSPF PE-CE** Green site at **R17** (behind R15, AS65200) reaches remote Green sites in AS65100.
 
-- [ ] **Task 5.1 [0 points — analysis]** — Scalability: how VPNv4 state and label state grow on ASBRs for A vs B vs C. Which scales best and why.
-- [ ] **Task 5.2 [0 points — analysis]** — State on ASBRs: A = full per-VRF IP state; B = VPNv4 + label state; C = **no** VPNv4 on ASBR (only BGP-LU transport). Record exactly what each ASBR holds.
-- [ ] **Task 5.3 [0 points — analysis]** — Complexity / security / operational tradeoffs: VRF explosion (A), RT-retain + single-hop trust (B), multihop RR trust + end-to-end LSP (C).
-- [ ] **Task 5.4 [0 points — analysis]** — When to pick each in a real SP (number of VPNs, trust between providers, label transparency).
-
-- [ ] **Snapshot:** `WB09-05-compare` (notes committed)
-
----
-
-## Section 6 — Cross-AS OSPF VPN (Green OSPF site R17) [5 points]
-
-After inter-AS is working, extend the **OSPF PE-CE** Green site at **R17** (behind R15, AS65200) to reach remote Green sites across the AS boundary.
-
-- [ ] **Task 6.1 [1 point]** — Confirm R17's OSPF PE-CE VRF (Green-OSPF) is up on R15 and routes are in VPNv4.
-- [ ] **Task 6.2 [2 points]** — Redistribute **BGP (VPNv4) → OSPF** on the PE toward R17 with a **prefix filter** (route-map / prefix-list) so only intended remote Green prefixes are injected (avoid leaking the full table, prevent domain-id / loop issues).
-- [ ] **Task 6.3 [2 points]** — Set/verify the OSPF **domain-id** and sham-link considerations if the remote Green site is also OSPF (decide whether a sham-link is needed; document the decision).
-- [ ] **Task 6.4 [0 points — verification]** — Confirm R17 learns remote Green prefixes as OSPF routes (correct LSA type: inter-area vs external based on domain-id) and has end-to-end reachability.
+- [ ] **Task 4.1 [1 point]** — Confirm R17's OSPF PE-CE (OSPF process 2, VRF GREEN on R15) is up and routes are in VPNv4. Verify R15 has both `redistribute ospf 2` (under BGP VRF GREEN) and `redistribute bgp 65200 subnets` (under OSPF 2 VRF GREEN) — mutual redistribution.
+- [ ] **Task 4.2 [2 points]** — Verify that remote Green prefixes from AS65100 (CE9: 150.9.9.9, CE10: 150.10.10.10) are redistributed from VPNv4 into OSPF on R15 and appear on R17 as OSPF routes. Check the **LSA type**: with matching domain-ID they appear as Type-3 (inter-area); with mismatched domain-ID they appear as Type-5 (external).
+- [ ] **Task 4.3 [1 point]** — Verify **DN-bit** is set on the LSAs redistributed from BGP into OSPF on R15. Confirm the DN-bit prevents another PE (if one existed) from re-importing these routes back into BGP.
+- [ ] **Task 4.4 [1 point]** — Verify **domain-tag** is set on Type-5 LSAs to provide backup loop prevention.
+- [ ] **Task 4.5 [0 points — verification]** — End-to-end: R17 ping CE9 (150.9.9.9) and CE10 (150.10.10.10) sourcing from R17's loopback. Traceroute to confirm the MPLS + inter-AS path.
 
 **Verify / Snapshot**
-- [ ] `show ip route vrf GREEN-OSPF` on R15 and `show ip route` on R17
-- [ ] `show ip ospf database` on R17 — remote prefixes present, expected LSA type
-- [ ] Prefix filter working: unwanted prefixes absent
-- [ ] End-to-end: R17 ↔ a remote Green CE
-- [ ] **Snapshot:** `WB09-06-ospf-vpn`
-
----
-
-## Section 7 — Troubleshooting Drills [5 points]
-
-- [ ] **Drill 7.1 — Option C next-hop unreachable [3 points]:** remove/break the BGP-LU labeled path for the remote PE loopback. The multihop VPNv4 session may stay UP but prefixes become **unreachable / inaccessible** (next-hop not resolvable via label). Diagnose that the VPNv4 next-hop has no BGP-LU label path, then restore.
-  - [ ] `show ip bgp vpnv4 all <prefix>` → "not advertised / inaccessible" next-hop
-  - [ ] `show ip bgp labels` → missing labeled /32
-  - [ ] `show mpls forwarding-table <remote-PE>` → no label path
-- [ ] **Drill 7.2 — Option A VRF mismatch [2 points]:** mis-assign the ASBR sub-interface to the wrong VRF (or mismatch RD/RT) on one side of R5↔R11. Confirm Green routes stop crossing. Diagnose VRF/sub-interface/RT mismatch, then fix.
-  - [ ] `show ip route vrf GREEN` → far prefixes missing on one side
-  - [ ] `show run interface <subif>` / `show vrf` → wrong VRF binding
-- [ ] **Snapshot:** `WB09-07-tshoot`
+- [ ] `show ip route vrf GREEN` on R15 — remote Green prefixes from BGP
+- [ ] `show ip route` on R17 — remote Green prefixes as OSPF routes (IA or E2)
+- [ ] `show ip ospf database` on R17 — LSA type and DN-bit visible
+- [ ] End-to-end: R17 ↔ CE9, R17 ↔ CE10
+- [ ] **Snapshot:** `WB09-04-ospf-vpn`
 
 ---
 
 ## Scoring Summary
 
-| Section | Max Points | Difficulty Breakdown |
-|---------|-----------|---------------------|
-| Section 1: Inter-AS Option A | 5 | CCIE-level: back-to-back VRF, per-VRF handoff |
-| Section 2: Inter-AS Option B | 5 | CCIE-level: labeled VPNv4, RT-retain, next-hop-self |
-| Section 3: Inter-AS Option C | 5 | CCIE-level: BGP-LU + multihop RR VPNv4 |
-| Section 4: Multi-AS Blue (3 ASes) | 5 | CCIE-level: Option C stitching across 3 cores |
-| Section 5: Compare A/B/C (analysis) | 0 | Written analysis — no points |
-| Section 6: Cross-AS OSPF VPN | 5 | CCIE-level: BGP→OSPF, domain-id, sham-link |
-| Section 7: Troubleshooting Drills | 5 | CCIE-level: break-and-fix scenarios |
-| **Total** | **30** | |
+| Section | Max Points | Description |
+|---------|-----------|-------------|
+| Section 1: Inter-AS Option A (Green, R5↔R11) | 5 | Back-to-back VRF, per-VRF sub-interface, PE-CE eBGP |
+| Section 2: Inter-AS Option B (Yellow+Blue, R12↔R21) | 5 | VPNv4 eBGP, RT retention, next-hop-self |
+| Section 3: Full Inter-AS (all customers, all 3 ASes) | 8 | Option B on R6↔R12 + R6↔R20, cross-AS RT import, end-to-end verification |
+| Section 4: Cross-AS OSPF VPN (R17 Green) | 5 | Mutual redistribution, DN-bit, domain-ID, domain-tag |
+| **Total** | **23** | |
 
 **Scoring rules:**
 - Configured from memory, no help: **full points**
@@ -170,21 +146,21 @@ After inter-AS is working, extend the **OSPF PE-CE** Green site at **R17** (behi
 
 **Rating:**
 ```
-26-30 points:  CCIE ready for this topic
-20-25 points:  Strong, minor gaps to review
-14-19 points:  Needs more practice
-Below 14:      Review the topic theory before retrying
+20-23 points:  CCIE ready for this topic
+15-19 points:  Strong, minor gaps to review
+10-14 points:  Needs more practice
+Below 10:      Review the topic theory before retrying
 ```
 
 ---
 
 ## Completion Criteria
 
-- [ ] Option A (R5↔R11) — CE9 ↔ CE18 reachable, no label on ASBR link
-- [ ] Option B (R12↔R21) — R26 ↔ R24 reachable, labeled VPNv4 + RT-retain + next-hop-self
-- [ ] Option C (R6↔R20, RR R7/R8↔R30) — R32 ↔ R25 end-to-end labeled, no VPNv4 on ASBR
-- [ ] Multi-AS Blue reachable across all 3 ASes via BGP-LU stitching
-- [ ] A/B/C comparison documented
-- [ ] Cross-AS OSPF Green (R17) reaching remote sites with prefix filter
-- [ ] Both troubleshooting drills diagnosed and recovered
+- [ ] Option A (R5↔R11) — Green CE9 ↔ CE17/CE18 reachable, no label on ASBR link
+- [ ] Option B (R12↔R21) — Yellow R26 ↔ R24 reachable, labeled VPNv4 + RT-retain
+- [ ] Option B (R6↔R12) — Second 65100↔65200 path for all customers
+- [ ] Option B (R6↔R20) — AS65100↔AS65300 direct path for Blue
+- [ ] All customer VRF import RTs updated for cross-AS reachability
+- [ ] Blue verified across all 3 ASes (R32 ↔ R14/R25 ↔ R21/R23)
+- [ ] Cross-AS OSPF Green (R17) reaching AS65100 sites, correct LSA types
 - [ ] **Final snapshot:** `WB09-FINAL`

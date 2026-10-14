@@ -187,3 +187,42 @@ Below 12:      Review the topic theory before retrying
 - [ ] TE + VPN integration + forwarding-adjacency confirmed
 - [ ] All 3 troubleshooting drills diagnosed and recovered
 - [ ] **Final snapshot:** `WB08-FINAL`
+
+---
+
+## Attempt History
+
+### Attempt 1 — October 11-12, 2026
+
+| Task | Max | Score | Notes |
+|------|-----|-------|-------|
+| **Section 1: Enable TE + RSVP + IS-IS TE** | **2** | **1** | |
+| 1.1 Global TE + interfaces | 1 | 1 | ✅ From memory — all R1-R6 core interfaces |
+| 1.2 RSVP + IS-IS TE extensions | 1 | 0 | ❌ Needed help: forgot `mpls traffic-eng level-2` + `router-id Lo0` under IS-IS |
+| **Section 2: Basic TE Tunnel** | **3** | **3** | ✅ PERFECT |
+| 2.1 Explicit path | 1 | 1 | ✅ R1→R3→R4→R6→R5 non-shortest path |
+| 2.2 Tunnel0 creation | 1 | 1 | ✅ Tunnel mode, destination, path-options, dynamic fallback |
+| 2.4 Autoroute announce | 1 | 1 | ✅ Traffic resolves via Tunnel0 |
+| **Section 3: FRR** | **5** | **5** | ✅ (config correct, verification excluded — Dynamips limitation) |
+| 3.1 FRR on headend | 1 | 1 | ✅ fast-reroute node-protect + record-route from memory |
+| 3.2 Bypass tunnel on PLR | 1 | 1 | ✅ R3 bypass to NNHOP R6 via R5, backup-path on gi1/0 |
+| 3.5 Node protection | 2 | 2 | ✅ Config correct, NNHOP bypass to R6 |
+| 3.4 Link failure test | 1 | 1 | ✅ Config correct — FRR state didn't populate (Dynamips), excluded from verification |
+| **Section 4: Bandwidth Management** | **3** | **2.5** | |
+| 4.1 Bandwidth requirement | 1 | 1 | ✅ 15000 kbps on Tunnel0, CSPF admits |
+| 4.2 Priority/preemption setup | 1 | 1 | ✅ Tunnel0 pri 6/5, Tunnel1 pri 4/3 |
+| 4.3 Preemption test | 1 | 0.5 | ⚠️ Half points — understood concept, needed help with bandwidth math |
+| 4.4 Auto-bandwidth | 0 | — | ✅ From memory (verification task) |
+| **Section 5: Advanced TE** | **5** | **3** | |
+| 5.1 Make-before-break (SE) | 1 | 1 | ✅ From memory — SE already default, verified with show ip rsvp reservation |
+| 5.2 Affinity/admin-groups | 2 | 2 | ✅ From memory — attribute-flags 0x1 on links, affinity 0x1 mask 0x1 on tunnel |
+| 5.4 DS-TE | 2 | — | ⛔ Excluded — not supported on Dynamips |
+| **Section 6: TE + VPN Integration** | **5** | **3** | |
+| 6.1 VPN over TE tunnel | 2 | 2 | ✅ Autoroute working, traceroute follows explicit path through tunnel |
+| 6.2 Forwarding-adjacency | 3 | 3 | ✅ From memory — holdtime 300, advertised as IS-IS link |
+| **Section 7: Troubleshooting** | **5** | **—** | ⛔ Excluded — break-and-fix not testable in current lab state |
+| **TOTAL (adjusted)** | **23** | **19.5** | **85% — Strong** (excludes DS-TE + troubleshooting) |
+
+**Excluded tasks:** DS-TE (platform), Troubleshooting drills (lab state), FRR verification (Dynamips)
+**From memory:** Tunnel creation, explicit path, autoroute, FRR config, auto-bw, affinity, forwarding-adjacency, MBB/SE, VPN over TE
+**Needed help:** IS-IS TE extensions (forgot mpls traffic-eng level-2), preemption bandwidth math (half points)
