@@ -137,6 +137,47 @@ Multi-home a Red CE to both R14 and R16 using an **Ethernet Segment Identifier**
 
 ---
 
+## Section 8 — EVPN-IRB (Integrated Routing and Bridging) [5 points]
+
+- [ ] **Task 8.1 [2 points]** — Configure **EVPN-IRB** on R14 and R16. Create a **bridge-domain** with a **BVI (Bridge-group Virtual Interface)** acting as the IP gateway (`interface BVI<n>` + `routing-interface BVI<n>` under the bridge-domain). The Red customer gets both **L2 switching** and **L3 routing** through the same EVPN instance (symmetric IRB with an IP-VRF).
+- [ ] **Task 8.2 [2 points]** — Configure a **distributed anycast gateway** — the SAME BVI IP address and SAME virtual MAC on both R14 and R16 (`host-routing` + anycast gateway MAC) so first-hop routing is **active-active**; a host keeps the same default gateway regardless of which PE it attaches to.
+- [ ] **Task 8.3 [1 point]** — Verify: `show evpn evi`, `show l2vpn bridge-domain`, `show bgp l2vpn evpn route-type 2` (MAC/IP advertisement **with** the host IP), `show bgp l2vpn evpn route-type 5` (IP-Prefix route for inter-subnet routing).
+
+**Verify / Snapshot**
+- [ ] `show l2vpn bridge-domain detail` — BVI as routed interface
+- [ ] `show evpn evi detail` — IRB / anycast gateway MAC
+- [ ] `show bgp l2vpn evpn route-type 2` — MAC/IP with IP; `route-type 5` — IP prefix
+- [ ] Host on R14 pings host on a different subnet via R16 (inter-subnet)
+- [ ] **Snapshot:** `WB20-08-evpn-irb`
+
+---
+
+## Section 9 — E-Tree (Hub-and-Spoke L2VPN) [3 points]
+
+- [ ] **Task 9.1 [2 points]** — Configure an **E-Tree** service using EVPN. **Root (hub)** sites may communicate with all sites; **Leaf (spoke)** sites may communicate **only with root**, not with other leaves. Assign the **AC role (root / leaf)** on each attachment circuit (`etree` + `leaf`/root designation) and use the EVPN **split-horizon / leaf-label** mechanism to block leaf-to-leaf.
+- [ ] **Task 9.2 [1 point]** — Verify leaf-to-leaf traffic is **blocked** while root-to-leaf works.
+
+**Verify / Snapshot**
+- [ ] `show evpn evi detail` — E-Tree root/leaf roles
+- [ ] Root CE ↔ Leaf CE: reachable
+- [ ] Leaf CE ↔ Leaf CE: blocked
+- [ ] **Snapshot:** `WB20-09-etree`
+
+---
+
+## Section 10 — L2VPN Auto-Steering into SR Policy [3 points]
+
+- [ ] **Task 10.1 [2 points]** — Configure an **EVPN-VPWS** service that steers traffic into an **SR-TE policy** using a BGP **color** community. The egress PE attaches a **color** extended community to the EVPN routes; the ingress PE **auto-steers** matching traffic into the SR policy whose (endpoint, color) matches (on-demand next-hop / ODN or a pre-configured color→policy mapping).
+- [ ] **Task 10.2 [1 point]** — Verify: `show segment-routing traffic-eng policy` shows the L2VPN traffic resolving over the SR policy (binding-SID / forwarding over the TE path).
+
+**Verify / Snapshot**
+- [ ] `show bgp l2vpn evpn` — color extended community on the service route
+- [ ] `show segment-routing traffic-eng policy color <c>` — policy UP, used by L2VPN
+- [ ] `show l2vpn xconnect detail` — forwarding via SR policy / binding-SID
+- [ ] **Snapshot:** `WB20-10-l2vpn-srte`
+
+---
+
 ## Scoring Summary
 
 | Section | Max Points | Difficulty Breakdown |
@@ -148,7 +189,10 @@ Multi-home a Red CE to both R14 and R16 using an **Ethernet Segment Identifier**
 | Section 5: Route types 1-5 + EVPN/SRv6 | 5 | CCIE-level: RT-5 + SRv6 transport |
 | Section 6: Compare VPLS / AToM | 3 | Conceptual: control-plane comparison |
 | Section 7: Troubleshooting Drills | 5 | CCIE-level: break-and-fix |
-| **Total** | **30** | |
+| Section 8: EVPN-IRB | 5 | CCIE-level: BVI + distributed anycast GW |
+| Section 9: E-Tree (hub-and-spoke) | 3 | CCIE-level: root/leaf split-horizon |
+| Section 10: L2VPN auto-steering into SR policy | 3 | CCIE-level: color community → SR-TE |
+| **Total** | **41** | |
 
 **Scoring rules:**
 - Configured from memory, no help: **full points**
@@ -159,10 +203,10 @@ Multi-home a Red CE to both R14 and R16 using an **Ethernet Segment Identifier**
 
 **Rating:**
 ```
-26-30 points:  CCIE ready for this topic
-20-25 points:  Strong, minor gaps to review
-13-19 points:  Needs more practice
-Below 13:      Review the topic theory before retrying
+36-41 points:  CCIE ready for this topic
+28-35 points:  Strong, minor gaps to review
+18-27 points:  Needs more practice
+Below 18:      Review the topic theory before retrying
 ```
 
 ---
@@ -176,6 +220,9 @@ Below 13:      Review the topic theory before retrying
 - [ ] Route types 1-5 observed; EVPN-over-SRv6 with locator
 - [ ] Written EVPN vs VPLS vs AToM comparison + migration story
 - [ ] All troubleshooting drills diagnosed and recovered
+- [ ] EVPN-IRB with BVI gateway + distributed anycast gateway (active-active)
+- [ ] E-Tree hub-and-spoke: root-to-leaf works, leaf-to-leaf blocked
+- [ ] EVPN-VPWS auto-steered into an SR-TE policy via color community
 - [ ] **Final snapshot:** `WB20-FINAL`
 
 ---
@@ -214,4 +261,14 @@ Below 13:      Review the topic theory before retrying
 | 7.1 EVI mismatch | 2 | | |
 | 7.2 Wrong ESI | 2 | | |
 | 7.3 No RT-3/BUM | 1 | | |
-| **TOTAL** | **30** | | |
+| **Section 8: EVPN-IRB** | **5** | | |
+| 8.1 BVI gateway | 2 | | |
+| 8.2 Distributed anycast GW | 2 | | |
+| 8.3 Verify RT-2/RT-5 | 1 | | |
+| **Section 9: E-Tree** | **3** | | |
+| 9.1 Root/leaf service | 2 | | |
+| 9.2 Verify leaf isolation | 1 | | |
+| **Section 10: L2VPN auto-steer SR** | **3** | | |
+| 10.1 Color → SR policy | 2 | | |
+| 10.2 Verify SR policy use | 1 | | |
+| **TOTAL** | **41** | | |

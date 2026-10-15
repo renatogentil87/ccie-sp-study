@@ -1187,9 +1187,205 @@ James
 
 ---
 
+## Section 15: Modern SP Transport & 5G Design
+
+---
+
+**Item 31 of 38**
+
+Refer to the new resource(s) available.
+
+Which two transport technologies must Atlas Global Networks implement to support 5G vRAN fronthaul timing requirements? (Choose two)
+
+A. PTP (IEEE 1588v2) boundary clock on every intermediate node
+B. NTP synchronization with stratum-1 server
+C. SyncE (Synchronous Ethernet) for physical layer frequency sync
+D. TWAMP probes for timing validation
+E. BFD echo mode for sub-millisecond detection
+
+**Answer:** *(see Solutions document)*
+
+**Resources**
+
+**Email: 5G RAN Transport Requirements**
+From: "Marco Silva" <msilva@atlas-global.net>
+To: "James Carvalho" <james@ccie-sp-lab.com>
+Subject: 5G RAN Transport Requirements
+
+Hi James,
+
+We are deploying 5G radios across the Emerald region and need to design the transport network for vRAN fronthaul (eCPRI). The radio vendor mandates ±1.5 microsecond time alignment between radio units. Our current network has no timing infrastructure. What do we need?
+
+Regards,
+Marco Silva
+Mobile Network Architect
+Atlas Global Networks
+
+---
+
+**Item 32 of 38**
+
+Which solution best describes transport network slicing for Atlas Global Networks' 5G deployment?
+
+A. Create separate physical networks for each slice (eMBB, URLLC, mMTC)
+B. Use Flex-Algo to create virtual topologies with different optimization objectives per slice, mapped to SR-TE policies with color communities
+C. Use MPLS-TE with DS-TE sub-pools, one per slice
+D. Use separate VRFs per slice with no traffic engineering
+
+**Answer:** *(see Solutions document)*
+
+**Resources**
+
+**Email: Network Slicing for 5G**
+From: "Marco Silva" <msilva@atlas-global.net>
+To: "James Carvalho" <james@ccie-sp-lab.com>
+Subject: Network Slicing Design
+
+James,
+
+Our 5G core requires three network slices: eMBB (high bandwidth), URLLC (ultra-low latency), and mMTC (massive IoT). Each slice needs different SLA guarantees across the transport. We want to avoid building separate physical networks. How can we achieve this with our existing SR infrastructure?
+
+Marco
+
+---
+
+**Item 33 of 38**
+
+Which design approach should Atlas Global Networks use for their Routed Optical Network (RON)?
+
+A. Separate IP/MPLS and optical layers with GMPLS UNI signaling between them
+B. Converge IP and optical layers using 400ZR/ZR+ coherent pluggable optics directly in routers, eliminating external transponders
+C. Use traditional DWDM with fixed optical channels and manual wavelength provisioning
+D. Deploy OTN switching at every node for sub-wavelength grooming
+
+**Answer:** *(see Solutions document)*
+
+**Resources**
+
+**Email: Optical Network Modernization**
+From: "Natalie Chen" <nchen@atlas-global.net>
+To: "James Carvalho" <james@ccie-sp-lab.com>
+Subject: Optical Network Strategy
+
+James,
+
+We want to simplify our optical transport. Currently we have separate DWDM transponders, OTN switches, and IP routers — three layers of equipment. Cisco is proposing a "routed optical" approach. Can you evaluate whether this fits our architecture?
+
+Natalie Chen
+Transport Planning
+
+---
+
+**Item 34 of 38**
+
+Which two statements about cloud-native BNG are correct? (Choose two)
+
+A. Cloud-native BNG separates the control plane and user plane (CUPS architecture)
+B. Cloud-native BNG requires all subscriber sessions to terminate on a single physical chassis
+C. The user plane can be distributed across multiple locations while the control plane is centralized
+D. Cloud-native BNG eliminates the need for RADIUS authentication
+E. Cloud-native BNG cannot support QoS per-subscriber
+
+**Answer:** *(see Solutions document)*
+
+**Resources**
+
+**Email: BNG Modernization**
+From: "Rick Torres" <rtorres@atlas-global.net>
+To: "James Carvalho" <james@ccie-sp-lab.com>
+Subject: Residential Broadband Access Redesign
+
+James,
+
+Our residential broadband network uses traditional ASR9000 BNG chassis. We want to modernize to a cloud-native architecture for better scalability. Can you explain the CUPS model and whether it fits our 500,000 subscriber base?
+
+Rick Torres
+Broadband Services
+
+---
+
+**Item 35 of 38**
+
+What is the purpose of Tree-SID in Segment Routing?
+
+A. It replaces PIM signaling for multicast by encoding the multicast tree as a segment list in the SR domain
+B. It provides unicast fast-reroute by building backup trees
+C. It replaces RSVP-TE for point-to-point tunnel signaling
+D. It is used only for BUM flooding in EVPN fabrics
+
+**Answer:** *(see Solutions document)*
+
+**Resources**
+
+**Email: Multicast Transport Simplification**
+From: "Marco Silva" <msilva@atlas-global.net>
+To: "James Carvalho" <james@ccie-sp-lab.com>
+Subject: SR Multicast
+
+James,
+
+We want to eliminate PIM from our core network. Our SR deployment is mature. Is there a way to handle multicast replication using Segment Routing natively? I heard about Tree-SID but need to understand what it actually does.
+
+Marco
+
+---
+
+**Item 36 of 38**
+
+Which statement correctly describes the SRv6 interworking gateway function?
+
+A. It translates between SRv6 and SR-MPLS domains by mapping SRv6 SIDs to MPLS labels and vice versa at the domain boundary
+B. It converts SRv6 packets to GRE encapsulation for legacy transport
+C. It requires all routers in both domains to support dual-stack SRv6+SR-MPLS
+D. It operates only at the control plane level and does not modify packet headers
+
+**Answer:** *(see Solutions document)*
+
+**Resources**
+
+**Email: SRv6 Migration Strategy**
+From: "Natalie Chen" <nchen@atlas-global.net>
+To: "James Carvalho" <james@ccie-sp-lab.com>
+Subject: SRv6 and SR-MPLS Coexistence
+
+James,
+
+Our Kyanite region runs SRv6 and Emerald runs SR-MPLS. When we need end-to-end service across both, how do we handle the boundary? Do we need every router to support both?
+
+Natalie
+
+---
+
+**Item 37 of 38**
+
+What is PBTS (Policy-Based Tunnel Selection) in MPLS-TE?
+
+A. Traffic classes (identified by DSCP or EXP) are steered into different TE tunnels to the same destination, each tunnel providing different SLA guarantees
+B. TE tunnels are selected based on BGP community values only
+C. PBTS replaces QoS classification entirely — no class-map or policy-map needed
+D. PBTS requires SR-TE and cannot work with RSVP-TE
+
+**Answer:** *(see Solutions document)*
+
+---
+
+**Item 38 of 38**
+
+Which two design choices are correct for Multi-Access Edge Computing (MEC) in a 5G SP network? (Choose two)
+
+A. MEC compute nodes are placed at aggregation sites close to the radio access network to minimize latency
+B. MEC requires a dedicated physical network separate from the transport
+C. Traffic steering to MEC uses SR-TE policies with color communities matching the MEC service
+D. MEC eliminates the need for a centralized 5G core
+E. All user traffic must traverse MEC before reaching the internet
+
+**Answer:** *(see Solutions document)*
+
+---
+
 ## End of Phase 1 Design Document
 
-This concludes the Atlas Global Networks CCIE Service Provider Design Phase 1 exam set (Items 1–30). Record your answers separately. Do not proceed to the Solutions document until all 30 items have been attempted.
+This concludes the Atlas Global Networks CCIE Service Provider Design Phase 1 exam set (Items 1–38). Record your answers separately. Do not proceed to the Solutions document until all 38 items have been attempted.
 
 **Topic coverage recap:**
 
@@ -1209,3 +1405,4 @@ This concludes the Atlas Global Networks CCIE Service Provider Design Phase 1 ex
 | 12 | Security | 27–28 |
 | 13 | 6PE/6VPE | 29 |
 | 14 | Capstone (cross-domain) | 30 |
+| 15 | Modern SP Transport & 5G | 31–38 |

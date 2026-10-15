@@ -147,6 +147,23 @@ Interwork a legacy LDP island with SR using a **Segment Routing Mapping Server (
 
 ---
 
+## Section 8 — Segment Routing on OSPF [4 points]
+
+Enable SR-MPLS in the **AS 65200 OSPF domain** (R11-R16, R19) — the OSPF counterpart to the IS-IS SR deployment above.
+
+- [ ] **Task 8.1 [2 points]** — Enable SR-MPLS on the OSPF domain: `router ospf <proc>` → `segment-routing mpls`, and assign a **prefix-SID** under each node's Loopback0 (`prefix-sid index <N>` under the OSPF interface / `area` loopback). Use **prefix-SID index = last octet of the loopback** (R11→11 … R16→16, R19→19). Keep the SRGB consistent with the fleet (16000-23999).
+- [ ] **Task 8.2 [1 point]** — Verify: `show ospf segment-routing`, and `show mpls forwarding-table` shows SR labels (**16000 + index**, e.g. R11 = 16011).
+- [ ] **Task 8.3 [1 point]** — Enable **TI-LFA** under the OSPF interfaces (`fast-reroute per-prefix ti-lfa`). Verify backup paths are computed.
+
+**Verify / Snapshot**
+- [ ] `show ospf segment-routing` — SR enabled, SRGB
+- [ ] `show ospf segment-routing prefix-sid` — index + absolute label per node
+- [ ] `show mpls forwarding-table` — SR labels 16011-16016, 16019
+- [ ] `show ospf fast-reroute` / `show route <loopback> detail` — TI-LFA backup
+- [ ] **Snapshot:** `WB16-08-sr-ospf`
+
+---
+
 ## Scoring Summary
 
 | Section | Max Points | Difficulty Breakdown |
@@ -158,7 +175,8 @@ Interwork a legacy LDP island with SR using a **Segment Routing Mapping Server (
 | Section 5: Microloop Avoidance | 3 | Intermediate: convergence behavior |
 | Section 6: LDP-to-SR Migration (SRMS) | 5 | CCIE-level: mapping server + stitching |
 | Section 7: Troubleshooting Drills | 5 | CCIE-level: break-and-fix |
-| **Total** | **28** | |
+| Section 8: Segment Routing on OSPF | 4 | CCIE-level: SR + prefix-SID + TI-LFA on OSPF |
+| **Total** | **32** | |
 
 **Scoring rules:**
 - Configured from memory, no help: **full points**
@@ -169,10 +187,10 @@ Interwork a legacy LDP island with SR using a **Segment Routing Mapping Server (
 
 **Rating:**
 ```
-24-28 points:  CCIE ready for this topic
-18-23 points:  Strong, minor gaps to review
-12-17 points:  Needs more practice
-Below 12:      Review the topic theory before retrying
+28-32 points:  CCIE ready for this topic
+21-27 points:  Strong, minor gaps to review
+14-20 points:  Needs more practice
+Below 14:      Review the topic theory before retrying
 ```
 
 ---
@@ -186,6 +204,7 @@ Below 12:      Review the topic theory before retrying
 - [ ] Microloop avoidance enabled and reasoned
 - [ ] LDP↔SR interworking via mapping server proven with stitched LSP
 - [ ] All troubleshooting drills diagnosed and recovered
+- [ ] SR-MPLS on OSPF (AS 65200) with prefix-SIDs + TI-LFA
 - [ ] **Final snapshot:** `WB16-FINAL`
 
 ---
@@ -224,4 +243,8 @@ Below 12:      Review the topic theory before retrying
 | 7.1 SRGB mismatch | 2 | | |
 | 7.2 Missing prefix-SID | 1 | | |
 | 7.3 TI-LFA not protecting | 2 | | |
-| **TOTAL** | **28** | | |
+| **Section 8: SR on OSPF** | **4** | | |
+| 8.1 SR + prefix-SID (OSPF) | 2 | | |
+| 8.2 Verify SR labels | 1 | | |
+| 8.3 TI-LFA on OSPF | 1 | | |
+| **TOTAL** | **32** | | |

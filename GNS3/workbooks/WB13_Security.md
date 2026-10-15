@@ -165,3 +165,20 @@ Below 18:      Review the topic theory before retrying
 4. `wb13-s4-flowspec` — after Flowspec (Section 4, or documented limitation)
 5. `wb13-s5-infra` — after CoPP/bogon/uRPF (Section 5)
 6. `wb13-complete` — after LDP/RSVP auth (Section 6)
+
+---
+
+## Section 7 — LPTS Concepts [0 points — concept/design]
+
+- [ ] **Task 7.1 [0 points]** — Document **LPTS (Local Packet Transport Services)** — IOS-XR's built-in control-plane protection. Explain how **LPTS differs from CoPP**:
+  - **LPTS** is **automatic / always-on**: XR programs per-protocol flow entries (BGP, LDP, OSPF, IS-IS, SSH, ICMP, etc.) into the hardware (pIFIB) with default per-flow **policer rates** — no user policy required. Entries are created as protocols are enabled.
+  - **CoPP** (IOS/IOS-XE) is **user-defined**: you build a `policy-map` with class-maps and explicit policers and attach it to the `control-plane`.
+  - LPTS rates are tunable (`lpts pifib hardware police flow <type> rate <pps>`) but the framework is built-in.
+  > **Note:** full LPTS configuration/tuning is practised in **WB32 (IOS-XR)**. This section is documentation-only on the IOS-classic 7200 lab.
+
+---
+
+## Section 8 — ACL Compression and Object Groups [0 points — concept/design]
+
+- [ ] **Task 8.1 [0 points]** — Document **object-group** concepts — group IP addresses/networks and ports into named **network** and **port** object-groups, then reference them in ACEs so one rule covers many sources/destinations/ports. Benefits: smaller, more readable ACLs, easier maintenance (edit the group, not every ACE), and **ACL compression** (the platform expands/compresses object-group ACLs in hardware for TCAM efficiency).
+  > **Note:** full object-group / ACL-compression configuration is practised in **WB32 (IOS-XR)**. This section is documentation-only on the IOS-classic 7200 lab.

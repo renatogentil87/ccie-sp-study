@@ -123,6 +123,58 @@ Replace Profile 0 PIM signaling with BGP-signaled C-multicast over an mLDP P2MP 
 
 ---
 
+## Section 7 — BIDIR-PIM [3 points]
+
+- [ ] **Task 7.1 [2 points]** — Configure **Bidirectional PIM** on the AS 65200 core. Enable `bidir-enable` under `router pim`. Configure the RP as **bidir** (`rp-address <rp> <acl> bidir`). In the attempt notes, explain **when BIDIR is preferred over SM**: many-to-many applications (every receiver is also a source), no SPT switchover, and no (S,G) state maintained in the core (scales to large numbers of sources).
+- [ ] **Task 7.2 [1 point]** — Verify bidir forwarding — `show pim topology`, `show mrib route`. Confirm **no (S,G) entries**, only **(\*,G) / (\*,G/M)** bidir entries, and the DF (Designated Forwarder) election per RPL.
+
+**Verify / Snapshot**
+- [ ] `show pim group-map` — group range marked `BIDIR`
+- [ ] `show pim topology` — bidir (\*,G) state, DF per interface
+- [ ] `show mrib route` — no (S,G); (\*,G/M) only
+- [ ] **Snapshot:** `WB26-07-bidir`
+
+---
+
+## Section 8 — Anycast RP with MSDP [3 points]
+
+- [ ] **Task 8.1 [2 points]** — Configure **anycast RP**: advertise the SAME RP address from two PEs (e.g. R14 and R16 both configure a **Loopback99** with the identical RP IP and advertise it into the IGP). Configure **MSDP peering** between the two RPs (`router msdp` → `peer <other-RP-loopback0>`, originator-id Loopback0) so each RP learns the other's active sources via **SA (Source-Active)** messages.
+- [ ] **Task 8.2 [1 point]** — Verify: `show pim rp mapping` shows the anycast RP; `show msdp peer` shows the MSDP session UP; `show msdp sa-cache` shows sources synchronised between the two RPs.
+
+**Verify / Snapshot**
+- [ ] `show pim rp mapping` — anycast RP address on both PEs
+- [ ] `show msdp peer` — session UP, SA count incrementing
+- [ ] `show msdp sa-cache` — (S,G) SAs learned from the peer RP
+- [ ] **Snapshot:** `WB26-08-anycast-rp`
+
+---
+
+## Section 9 — MLD (Multicast Listener Discovery for IPv6) [2 points]
+
+- [ ] **Task 9.1 [1 point]** — Configure **MLD** on the PE interfaces for IPv6 multicast. Enable `router mld` under the interface config; set **MLD version 2** (MLDv2, required for IPv6 SSM). Enable IPv6 multicast-routing (`multicast-routing address-family ipv6`).
+- [ ] **Task 9.2 [1 point]** — Verify: `show mld interface`, `show mld groups`.
+
+**Verify / Snapshot**
+- [ ] `show mld interface` — MLD enabled, version 2
+- [ ] `show mld groups` — joined IPv6 multicast groups
+- [ ] `show mrib ipv6 route` — IPv6 multicast state
+- [ ] **Snapshot:** `WB26-09-mld`
+
+---
+
+## Section 10 — Additional mVPN Profiles [4 points]
+
+- [ ] **Task 10.1 [2 points]** — Configure **mVPN Profile 6 (PIM/GRE with BGP C-multicast signaling)** — a variant of Profile 0 that keeps the default MDT over PIM/GRE but uses **BGP** for C-multicast signaling instead of PIM C-multicast (`bgp auto-discovery pim` + C-multicast carried in `ipv4 mvpn`). Document the difference from Profile 0 (BGP-signalled C-joins vs. PIM-signalled over the MDT).
+- [ ] **Task 10.2 [2 points]** — Configure **mVPN Profile 14 (Partitioned MDT with mLDP P2MP + BGP C-multicast)** — used in large-scale deployments. Each PE builds its own partitioned MDT on demand rather than a full-mesh default MDT. In the attempt notes, explain the **difference from Profile 3**: Profile 3 uses a global/default mLDP MDT that all PEs join; Profile 14 uses **partitioned** MDTs (ingress-PE-rooted P2MP trees created only when traffic exists), reducing state and flooding at scale.
+
+**Verify / Snapshot**
+- [ ] `show mvpn vrf YELLOW` — profile mode (6 / 14)
+- [ ] `show bgp ipv4 mvpn` — BGP C-multicast routes for both profiles
+- [ ] `show mpls mldp database` — partitioned P2MP LSPs (Profile 14)
+- [ ] **Snapshot:** `WB26-10-profiles-6-14`
+
+---
+
 ## Scoring Summary
 
 | Section | Max Points | Difficulty Breakdown |
@@ -133,7 +185,11 @@ Replace Profile 0 PIM signaling with BGP-signaled C-multicast over an mLDP P2MP 
 | Section 4: CE multicast (IOS-XE) | 3 | Standard: PIM-SM + BSR/RP + IGMP |
 | Section 5: RR config for mVPN | 3 | Intermediate: ipv4 mvpn RR client |
 | Section 6: Troubleshooting Drills | 3 | CCIE-level: break-and-fix |
-| **Total** | **22** | |
+| Section 7: BIDIR-PIM | 3 | CCIE-level: bidir RP, DF election, no (S,G) |
+| Section 8: Anycast RP with MSDP | 3 | CCIE-level: shared RP + MSDP SA sync |
+| Section 9: MLD (IPv6) | 2 | Intermediate: MLDv2 + IPv6 multicast |
+| Section 10: Additional mVPN Profiles (6, 14) | 4 | CCIE-level: Profile 6 + partitioned MDT 14 |
+| **Total** | **34** | |
 
 **Scoring rules:**
 - Configured from memory, no help: **full points**
@@ -144,10 +200,10 @@ Replace Profile 0 PIM signaling with BGP-signaled C-multicast over an mLDP P2MP 
 
 **Rating:**
 ```
-19-22 points:  CCIE ready for this topic
-15-18 points:  Strong, minor gaps to review
-10-14 points:  Needs more practice
-Below 10:      Review the topic theory before retrying
+30-34 points:  CCIE ready for this topic
+23-29 points:  Strong, minor gaps to review
+15-22 points:  Needs more practice
+Below 15:      Review the topic theory before retrying
 ```
 
 ---
@@ -160,6 +216,10 @@ Below 10:      Review the topic theory before retrying
 - [ ] CE multicast (IOS-XE) with BSR/RP and IGMP join test
 - [ ] RR R19 reflecting `ipv4 mvpn` to Yellow PEs
 - [ ] All troubleshooting drills diagnosed and recovered
+- [ ] BIDIR-PIM with bidir RP + DF election (no (S,G) state)
+- [ ] Anycast RP with MSDP SA synchronisation between two RPs
+- [ ] MLDv2 for IPv6 multicast on PE interfaces
+- [ ] mVPN Profiles 6 (PIM/GRE + BGP C-mcast) and 14 (partitioned MDT) configured
 - [ ] **Final snapshot:** `WB26-FINAL`
 
 ---
@@ -195,4 +255,16 @@ Below 10:      Review the topic theory before retrying
 | 6.1 Default MDT down | 1 | | |
 | 6.2 RPF failure | 1 | | |
 | 6.3 Missing mVPN AF on RR | 1 | | |
-| **TOTAL** | **22** | | |
+| **Section 7: BIDIR-PIM** | **3** | | |
+| 7.1 Bidir RP + explanation | 2 | | |
+| 7.2 Verify no (S,G) | 1 | | |
+| **Section 8: Anycast RP + MSDP** | **3** | | |
+| 8.1 Anycast RP + MSDP peer | 2 | | |
+| 8.2 Verify SA-cache | 1 | | |
+| **Section 9: MLD (IPv6)** | **2** | | |
+| 9.1 MLDv2 on PE | 1 | | |
+| 9.2 Verify MLD groups | 1 | | |
+| **Section 10: Profiles 6 & 14** | **4** | | |
+| 10.1 Profile 6 (PIM/GRE + BGP) | 2 | | |
+| 10.2 Profile 14 (partitioned MDT) | 2 | | |
+| **TOTAL** | **34** | | |

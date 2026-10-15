@@ -164,3 +164,40 @@ Below 10:      Review the topic theory before retrying
 - [ ] Blue verified across all 3 ASes (R32 ↔ R14/R25 ↔ R21/R23)
 - [ ] Cross-AS OSPF Green (R17) reaching AS65100 sites, correct LSA types
 - [ ] **Final snapshot:** `WB09-FINAL`
+
+---
+
+## Attempt History
+
+### Attempt 1 — October 13-14, 2026
+
+| Task | Max | Score | Notes |
+|------|-----|-------|-------|
+| **Section 1: Option A (R5↔R11, Green)** | **5** | **5** | ✅ PERFECT |
+| 1.1 VRF GREEN on ASBRs | 1 | 1 | ✅ From memory |
+| 1.2 Per-VRF sub-interface (dot1q) | 2 | 2 | ✅ From memory — removed global IP, created sub-interface |
+| 1.3 Per-VRF eBGP session | 1 | 1 | ✅ From memory |
+| 1.4 Redistribute into VPNv4 | 1 | 1 | ✅ Routes propagate to PEs via RRs |
+| **Section 2: Option B (R12↔R21, Yellow+Blue)** | **5** | **4** | |
+| 2.1 VPNv4 eBGP session | 1 | 1 | ✅ From memory |
+| 2.2 next-hop-self | 1 | 1 | ✅ From memory |
+| 2.3 RT retention | 1 | 0 | ❌ Needed help — didn't know `no bgp default route-target filter` |
+| 2.4 send-community extended | 1 | 1 | ✅ From memory |
+| 2.5 Import RTs on receiving PEs | 1 | 1 | ✅ From memory |
+| **Section 3: Full Connectivity (all links, all customers)** | **8** | **8** | ✅ PERFECT |
+| 3.1 R6↔R12 Option A (3 VRFs) | 2 | 2 | ✅ From memory — own design choice, Green+Yellow+Blue sub-interfaces |
+| 3.2 R6↔R20 Option B | 2 | 2 | ✅ From memory — VPNv4 eBGP, NHS, send-community, RT retention |
+| 3.3 Cross-AS import RTs | 2 | 2 | ✅ Updated all PEs across all 3 ASes |
+| 3.4 End-to-end verification | 2 | 2 | ✅ All customers reachable across AS boundaries |
+| **Section 4: Cross-AS OSPF VPN (R17)** | **5** | **5** | ✅ PERFECT |
+| 4.1 OSPF PE-CE confirmed | 1 | 1 | ✅ R15 OSPF 2 VRF GREEN up, routes in VPNv4 |
+| 4.2 Remote prefixes in OSPF on R17 | 2 | 2 | ✅ CE9/CE10 reachable from R17, LSA types verified |
+| 4.3 DN-bit verified | 1 | 1 | ✅ From memory |
+| 4.4 Domain-tag verified | 1 | 1 | ✅ From memory |
+| **TOTAL** | **23** | **22** | **96% — Excellent** |
+
+**Perfect sections:** Option A (5/5), Full Connectivity (8/8), Cross-AS OSPF VPN (5/5)
+**From memory:** Option A sub-interfaces, per-VRF eBGP, Option B VPNv4, next-hop-self, send-community, import RTs, R6↔R12 3-VRF design, OSPF PE-CE DN-bit/domain-tag
+**Needed help:** `no bgp default route-target filter` (0 points — wouldn't know on exam day)
+**Design choices:** R6↔R12 as Option A with 3 VRFs (own decision), R6↔R20 as Option B (own decision)
+**Note:** Inter-AS Option C not tested (platform limitation on Dynamips, deferred to WB25/WB28 on EVE-NG)

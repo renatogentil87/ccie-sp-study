@@ -132,6 +132,79 @@ Configured **on the XR devices** (not NSO) — model-driven telemetry to a colle
 
 ---
 
+## Section 7 — Ansible Playbooks for IOS-XR [4 points]
+
+- [ ] **Task 7.1 [2 points]** — Write an **Ansible playbook** that collects show commands from **all XR devices** (`show isis neighbors`, `show bgp summary`) and saves each device's output to a per-host file. Use the **`cisco.iosxr`** collection (`iosxr_command` module); drive the device list from an inventory group and register the output to write with `copy`/`template`.
+- [ ] **Task 7.2 [2 points]** — Write an Ansible playbook that **deploys a standard config template** (NTP, logging, banner) to all XR devices. Use the **`iosxr_config`** module with a `src:` Jinja2 template so the baseline is rendered per device and pushed idempotently.
+
+**Verify / Snapshot**
+- [ ] `ansible-playbook … --check` (dry run) succeeds against the XR inventory
+- [ ] Per-host output files created (collect playbook)
+- [ ] On devices: NTP/logging/banner present after the config playbook
+- [ ] **Snapshot:** `WB21-07-ansible`
+
+---
+
+## Section 8 — Python Scripts with IOS-XR [3 points]
+
+- [ ] **Task 8.1 [2 points]** — Write a **Python script** using **netmiko** or **ncclient (NETCONF)** that connects to an XR device, retrieves the running config for `router isis`, and **parses** the output (e.g. extract net/area, interfaces, metrics).
+- [ ] **Task 8.2 [1 point]** — Write a Python script that **pushes a VRF configuration** to a PE using **NETCONF** with a **YANG model payload** (`Cisco-IOS-XR-infra-rsi-cfg` / `l3vpn` models) via `ncclient edit-config`.
+
+**Verify / Snapshot**
+- [ ] Script output shows parsed IS-IS fields
+- [ ] On the PE: VRF created after the NETCONF edit-config
+- [ ] `show configuration commit list` reflects the programmatic commit
+- [ ] **Snapshot:** `WB21-08-python`
+
+---
+
+## Section 9 — gNMI (gRPC Network Management Interface) [3 points]
+
+- [ ] **Task 9.1 [2 points]** — Configure the **gNMI server** on IOS-XR (`grpc` → `port`, `tls` / certificate, `no-tls` only for lab). Use a **gNMI client** (`gnmic` or similar) to **Subscribe** to interface counters (STREAM / SAMPLE mode) and confirm telemetry rows stream in.
+- [ ] **Task 9.2 [1 point]** — In the attempt notes, compare **gNMI vs gRPC telemetry**: dial-in (collector initiates, gNMI Subscribe/Get/Set) vs dial-out (device initiates to a configured destination); the gNMI RPC set (Capabilities / Get / Set / Subscribe) and when each is used.
+
+**Verify / Snapshot**
+- [ ] `show grpc` — server UP, port/tls state
+- [ ] `gnmic … subscribe` — interface counter updates received
+- [ ] **Snapshot:** `WB21-09-gnmi`
+
+---
+
+## Section 10 — Secure ZTP (Zero Touch Provisioning) [3 points]
+
+- [ ] **Task 10.1 [2 points]** — Describe/configure **ZTP** on IOS-XR — the **iPXE boot** process, **DHCP options** (option 67 for the script/boot-file URL, option 150/66 for TFTP), and a **ZTP script** (Python or shell) that applies base config on first boot. Document the end-to-end first-boot flow.
+- [ ] **Task 10.2 [1 point]** — **Secure ZTP** — signed scripts, certificate validation, **owner certificate** / ownership voucher (RFC 8572 Secure ZTP). In the notes, explain the **security risks of unsecured ZTP** (rogue DHCP/boot server, malicious script injection, device onboarding to an attacker's config).
+
+**Verify / Snapshot**
+- [ ] ZTP flow documented (iPXE → DHCP → script → commit)
+- [ ] `show ztp log` / `show ztp status` — provisioning result
+- [ ] **Snapshot:** `WB21-10-ztp`
+
+---
+
+## Section 11 — IOS-XR Application Hosting [2 points]
+
+- [ ] **Task 11.1 [1 point]** — Document the **concepts of XR app hosting** — native apps vs **docker containers** on XR, third-party **LXC** containers, and the **East-West** API between a hosted app and XR (shared management/data interfaces).
+- [ ] **Task 11.2 [1 point]** — Configure a simple **hosted application** (e.g. a monitoring script in a container): `app-hosting appid <name>`, `app-hosting activate`, `app-hosting start`. Verify: `show app-hosting`.
+
+**Verify / Snapshot**
+- [ ] `show app-hosting list` / `show app-hosting detail` — app RUNNING
+- [ ] **Snapshot:** `WB21-11-apphosting`
+
+---
+
+## Section 12 — RESTCONF [2 points]
+
+- [ ] **Task 12.1 [1 point]** — Enable **RESTCONF** on IOS-XR (`restconf` + the HTTP/HTTPS server). Use **curl** or Postman to **GET** the running config via RESTCONF (`https://<device>/restconf/data/Cisco-IOS-XR-...`), confirming a 200 with the YANG-modelled JSON/XML.
+- [ ] **Task 12.2 [1 point]** — Use RESTCONF to **PUT/PATCH** a configuration change (e.g. add a loopback interface) and confirm it commits on the device.
+
+**Verify / Snapshot**
+- [ ] `curl -k … GET` returns running config (RESTCONF)
+- [ ] `curl -k … PUT/PATCH` creates the loopback; `show run interface Loopback<n>` confirms
+- [ ] **Snapshot:** `WB21-12-restconf`
+
+---
+
 ## Scoring Summary
 
 | Section | Max Points | Difficulty Breakdown |
@@ -142,7 +215,13 @@ Configured **on the XR devices** (not NSO) — model-driven telemetry to a colle
 | Section 4: Troubleshooting sync/reconcile | 4 | CCIE-level: check-sync, compare, reconcile |
 | Section 5: Streaming telemetry (gRPC) | 5 | CCIE-level: sensor/destination/subscription, TPA |
 | Section 6: Troubleshooting Drills | 4 | CCIE-level: break-and-fix |
-| **Total** | **27** | |
+| Section 7: Ansible playbooks for XR | 4 | Intermediate: cisco.iosxr collect + config |
+| Section 8: Python scripts with XR | 3 | Intermediate: netmiko/ncclient + NETCONF/YANG |
+| Section 9: gNMI | 3 | CCIE-level: gNMI server + subscribe |
+| Section 10: Secure ZTP | 3 | CCIE-level: iPXE/DHCP + signed scripts |
+| Section 11: XR application hosting | 2 | Intermediate: app-hosting container |
+| Section 12: RESTCONF | 2 | Intermediate: GET + PUT/PATCH |
+| **Total** | **44** | |
 
 **Scoring rules:**
 - Configured from memory, no help: **full points**
@@ -153,10 +232,10 @@ Configured **on the XR devices** (not NSO) — model-driven telemetry to a colle
 
 **Rating:**
 ```
-23-27 points:  CCIE ready for this topic
-18-22 points:  Strong, minor gaps to review
-12-17 points:  Needs more practice
-Below 12:      Review the topic theory before retrying
+38-44 points:  CCIE ready for this topic
+30-37 points:  Strong, minor gaps to review
+20-29 points:  Needs more practice
+Below 20:      Review the topic theory before retrying
 ```
 
 ---
@@ -169,6 +248,12 @@ Below 12:      Review the topic theory before retrying
 - [ ] OOB change detected (check-sync/compare-config) and reconciled (re-deploy reconcile)
 - [ ] gRPC dial-out telemetry (sensor-group/destination/subscription) + TPA address active
 - [ ] All troubleshooting drills diagnosed and recovered
+- [ ] Ansible playbooks: collect (cisco.iosxr) + config template deploy
+- [ ] Python: netmiko/ncclient parse IS-IS + NETCONF/YANG VRF push
+- [ ] gNMI server + subscribe to interface counters
+- [ ] Secure ZTP flow documented (iPXE/DHCP + signed script risks)
+- [ ] XR application hosting container RUNNING
+- [ ] RESTCONF GET + PUT/PATCH (add loopback) verified
 - [ ] **Final snapshot:** NSO `ncs-backup` tagged `WB21-FINAL`
 
 ---
@@ -207,4 +292,22 @@ Below 12:      Review the topic theory before retrying
 | 6.1 Device unreachable | 1 | | |
 | 6.2 Service commit error | 2 | | |
 | 6.3 Telemetry sub down | 1 | | |
-| **TOTAL** | **27** | | |
+| **Section 7: Ansible** | **4** | | |
+| 7.1 Collect playbook | 2 | | |
+| 7.2 Config template playbook | 2 | | |
+| **Section 8: Python** | **3** | | |
+| 8.1 Parse IS-IS (netmiko/ncclient) | 2 | | |
+| 8.2 NETCONF VRF push | 1 | | |
+| **Section 9: gNMI** | **3** | | |
+| 9.1 gNMI server + subscribe | 2 | | |
+| 9.2 gNMI vs gRPC compare | 1 | | |
+| **Section 10: Secure ZTP** | **3** | | |
+| 10.1 ZTP flow | 2 | | |
+| 10.2 Secure ZTP + risks | 1 | | |
+| **Section 11: App hosting** | **2** | | |
+| 11.1 Concepts | 1 | | |
+| 11.2 Hosted app running | 1 | | |
+| **Section 12: RESTCONF** | **2** | | |
+| 12.1 GET running config | 1 | | |
+| 12.2 PUT/PATCH loopback | 1 | | |
+| **TOTAL** | **44** | | |
