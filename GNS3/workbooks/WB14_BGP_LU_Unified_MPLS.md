@@ -32,7 +32,7 @@
 
 - [ ] **Task 1.2 — Advertise PE loopbacks with labels. [1 point]**
   Originate the local-AS PE loopbacks into BGP-LU:
-  - AS65100: R1 `150.1.1.1/32`, R2 `150.1.2.2/32`
+  - AS65100: R1 `150.1.31.31/32`, R2 `150.1.2.2/32`
   - AS65200: R14/R15/R16 loopbacks
   - AS65300: R20–R23 loopbacks (goal endpoint R23 `150.3.23.23/32`)
   Use `network` or redistribute-with-label; ensure each /32 leaves the AS labeled.
@@ -82,14 +82,14 @@
 ## Section 4 — Verification (End-to-End) [0 points — verification]
 
 - [ ] **Task 4.1 — Control plane.**
-  `show bgp ipv4 labeled-unicast` on R1 shows R23's loopback with a label and a next-hop resolving internally. Repeat from R23 toward R1 (bidirectional LSP).
+  `show bgp ipv4 labeled-unicast` on R31 shows R23's loopback with a label and a next-hop resolving internally. Repeat from R23 toward R1 (bidirectional LSP).
 
 - [ ] **Task 4.2 — LFIB continuity.**
   `show mpls forwarding-table 150.3.23.23` at R1, then at each transit hop — confirm an unbroken swap chain to R23.
 
 - [ ] **Task 4.3 — Data plane: traceroute mpls.**
   Run `traceroute mpls ipv4 150.3.23.23/32` from R1 (and `traceroute` from R1 loopback to R23 loopback). Confirm every transit hop reports a label stack and the path crosses all 3 ASes.
-  *Verify:* `ping 150.3.23.23 source 150.1.1.1` succeeds; traceroute shows MPLS labels at AS65100, AS65200/AS65300 transit hops.
+  *Verify:* `ping 150.3.23.23 source 150.1.31.31` succeeds; traceroute shows MPLS labels at AS65100, AS65200/AS65300 transit hops.
 
 - [ ] **Task 4.4 — Prove no end-to-end IGP.**
   Confirm R1 has **no IGP route** to `150.3.23.23` — reachability exists only via BGP-LU. This validates true Unified MPLS (not a flat IGP).
@@ -149,7 +149,7 @@ Below 7:       Review the topic theory before retrying
 - [ ] ASBRs swap labels (not pop/unlabeled) at boundaries
 - [ ] next-hop-self on all ASBRs toward RRs
 - [ ] RRs reflect labeled-unicast to clients
-- [ ] R1→R23 end-to-end LSP: `traceroute mpls` shows labeled path across 3 ASes
+- [ ] R31→R23 end-to-end LSP: `traceroute mpls` shows labeled path across 3 ASes
 - [ ] Confirmed no end-to-end IGP route to R23 loopback
 - [ ] All 3 troubleshooting root causes reproduced + fixed
 - [ ] **GNS3 snapshot taken:** `wb14-bgp-lu-unified-complete`

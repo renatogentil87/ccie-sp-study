@@ -12,7 +12,7 @@
 |----|-------------|----|----|------|
 | R14 | f4/0 | R28 | 65200 | PW endpoint A |
 | R16 | f3/0 | R27 | 65200 | PW endpoint B |
-| R1 | g2/0 | R29 | 65100 | cross-AS endpoint (needs inter-AS stitching) |
+| R31 | g2/0 | R29 | 65100 | cross-AS endpoint (needs inter-AS stitching) |
 
 > R14 and R16 are both in AS 65200, so a plain intra-AS AToM PW works directly between them. R1 is in AS 65100 — a PW to R14/R16 crosses an AS boundary and is **not** a simple xconnect (see Section 3).
 
@@ -121,7 +121,7 @@ interface FastEthernet3/0.100
 
 ---
 
-## Section 3: R1 g2/0 (R29) — Cross-AS PW (NOT a simple xconnect)
+## Section 3: R31 f0/0 (R29) — Cross-AS PW (NOT a simple xconnect)
 
 R1 is in AS 65100; R14/R16 are in AS 65200. A pseudowire from R1 to R14 or R16 cannot use a single targeted-LDP session because the loopbacks are not in the same IGP/LDP domain and directed LDP is not natively exchanged across the AS boundary.
 
@@ -149,12 +149,12 @@ A multi-segment PW is stitched at a border router with `l2 vfi ... point-to-poin
 ! Conceptual — stitch segment-1 (toward AS65100 PE R1) to segment-2 (toward AS65200 PE R14)
 ! Performed on the stitching PE/ASBR once inter-AS loopback reachability is established.
 l2 vfi R29-R28-STITCH point-to-point
- neighbor 150.1.1.1 100 encapsulation mpls      ! segment to R1  (AS65100)
+ neighbor 150.1.31.31 100 encapsulation mpls      ! segment to R1  (AS65100)
  neighbor 150.2.14.14 100 encapsulation mpls     ! segment to R14 (AS65200)
 !
 ```
 
-> **Blocker:** the stitching node must have LDP/loopback reachability to **both** 150.1.1.1 and 150.2.14.14. That cross-AS reachability is exactly what WB09 Inter-AS (Option B/C or BGP-LU) provides. Until then, this PW is non-functional. Document it, configure it, and revisit after WB09/WB14 (BGP-LU unified MPLS).
+> **Blocker:** the stitching node must have LDP/loopback reachability to **both** 150.1.31.31 and 150.2.14.14. That cross-AS reachability is exactly what WB09 Inter-AS (Option B/C or BGP-LU) provides. Until then, this PW is non-functional. Document it, configure it, and revisit after WB09/WB14 (BGP-LU unified MPLS).
 
 ---
 
@@ -214,4 +214,4 @@ Local intf     Local circuit        Dest address     VC ID   Status
 Fa4/0.100      Eth VLAN 100         150.2.16.16      100     UP
 ```
 
-> A healthy intra-AS PW shows **Status: UP** on both R14 and R16. Common down-causes: VC-ID mismatch, AC type mismatch (port vs VLAN), control-word mismatch, or no targeted-LDP session (loopback not reachable / LDP not enabled). The R1↔R14 cross-AS PW (Section 3) will show **DOWN / no remote binding** until WB09 is complete — that is expected, not a misconfiguration.
+> A healthy intra-AS PW shows **Status: UP** on both R14 and R16. Common down-causes: VC-ID mismatch, AC type mismatch (port vs VLAN), control-word mismatch, or no targeted-LDP session (loopback not reachable / LDP not enabled). The R31↔R14 cross-AS PW (Section 3) will show **DOWN / no remote binding** until WB09 is complete — that is expected, not a misconfiguration.

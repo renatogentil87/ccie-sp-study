@@ -51,7 +51,7 @@
   *Verify:* `show bgp` shows the trigger prefix carrying the RTBH community.
 
 - [ ] **Task 3.2 — Configure the enforcing routers (ingress PEs/ASBRs). [2 points]**
-  On the edge devices (R1, R2 and ASBRs), add an inbound policy: match the RTBH community → set next-hop to a pre-defined "black-hole" address that statically resolves to Null0. Ensure the Null0 static exists on every enforcing router.
+  On the edge devices (R31, R2 and ASBRs), add an inbound policy: match the RTBH community → set next-hop to a pre-defined "black-hole" address that statically resolves to Null0. Ensure the Null0 static exists on every enforcing router.
   *Verify:* once triggered, the victim /32 on the edge router resolves to Null0 (`show ip route <victim>` → Null0).
 
 - [ ] **Task 3.3 — Trigger and confirm the black hole. [1 point]**
@@ -76,7 +76,7 @@
   *Verify:* receiving PE installs the flowspec entry into the data plane; `show flowspec` / `show policy-map` reflects the action.
 
 - [ ] **Task 4.3 — Apply on PEs and validate. [1 point]**
-  Enable flowspec reception on R1, R2 (and R14/R16 if testing in AS65200). Generate matching traffic and confirm drop/rate-limit.
+  Enable flowspec reception on R31, R2 (and R14/R16 if testing in AS65200). Generate matching traffic and confirm drop/rate-limit.
   *Verify:* counters increment on the flowspec action; non-matching traffic passes.
 
 ---

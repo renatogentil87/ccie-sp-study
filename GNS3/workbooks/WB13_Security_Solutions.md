@@ -79,7 +79,7 @@ router bgp 65100
 
 > Apply `neighbor X password CCIE` on **every** BGP peering (iBGP + eBGP), both ends. Mismatch → session never establishes, log shows `%TCP-6-BADAUTH`.
 > - Inter-AS eBGP: R5↔R11, R6↔R12, R6↔R20, R12↔R21
-> - PE-CE eBGP: R1↔R9, R1↔R10, R1↔R32, R2↔R10, R14↔R25, R16↔R18, R16↔R26, R20↔R24, R21↔R25, R22↔R24, R23↔R25
+> - PE-CE eBGP: R31↔R9, R31↔R10, R31↔R32, R2↔R10, R14↔R25, R16↔R18, R16↔R26, R20↔R24, R21↔R25, R22↔R24, R23↔R25
 > - iBGP: all PE/ASBR ↔ RR sessions (R7/R8, R19, R30)
 
 ### 2.2 GTSM (TTL security) — eBGP peers only

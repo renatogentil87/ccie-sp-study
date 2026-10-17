@@ -14,7 +14,7 @@
 > Take an **EVE-NG snapshot/export** at each checkpoint so you can roll back cleanly.
 
 > **Reference (IS-IS domains):**
-> **AS 65100** (area 49.0001, L2): R1(PE) 150.1.1.1 · R2(PE) 150.1.2.2 · R3(P) 150.1.3.3 · R4(P) 150.1.4.4 · R5(ASBR) 150.1.5.5 · R6(ASBR) 150.1.6.6 · R7(RR) 150.1.7.7 · R8(RR) 150.1.8.8
+> **AS 65100** (area 49.0001, L2): R31(PE) 150.1.31.31 · R2(PE) 150.1.2.2 · R3(P) 150.1.3.3 · R4(P) 150.1.4.4 · R5(ASBR) 150.1.5.5 · R6(ASBR) 150.1.6.6 · R7(RR) 150.1.7.7 · R8(RR) 150.1.8.8
 > **AS 65300** (area 49.0003, L2): R20(ASBR/PE) 150.3.20.20 · R21(ASBR/PE) 150.3.21.21 · R22(PE) 150.3.22.22 · R23(PE) 150.3.23.23 · R30(RR) 150.3.30.30
 > IPv6: 2001:db8:1::/48 (AS 65100), 2001:db8:3::/48 (AS 65300). Core links per `00_topology_reference.md`.
 
@@ -52,7 +52,7 @@ Build a reusable `group CCIE-ISIS` using regex interface matching + `apply-group
 
 Impose a level hierarchy: PEs/ASBRs L1-only, P routers L1/L2, RRs L2-only, with controlled L1→L2 propagation.
 
-- [ ] **Task 2.1 [2 points]** — Set `is-type`: PEs/ASBRs (R1/R2/R5/R6, R20-R23) as **level-1**, P routers (R3/R4) as **level-1-2**, RRs (R7/R8, R30) as **level-2-only**. Set `circuit-type` per interface to match the adjacency level.
+- [ ] **Task 2.1 [2 points]** — Set `is-type`: PEs/ASBRs (R31/R2/R5/R6, R20-R23) as **level-1**, P routers (R3/R4) as **level-1-2**, RRs (R7/R8, R30) as **level-2-only**. Set `circuit-type` per interface to match the adjacency level.
 - [ ] **Task 2.2 [1 point]** — Confirm the correct adjacency level forms on each link (L1 inside an area edge, L2 in the backbone) via `show isis adjacency`.
 - [ ] **Task 2.3 [1 point]** — Configure **L1→L2 propagation** with a `route-policy` so only intended loopbacks are propagated; attach a **drop-all** route-policy where leaking must be prevented (`propagate level 1 into level 2 route-policy DROP-ALL`).
 - [ ] **Task 2.4 [1 point]** — Confirm that unwanted L1 prefixes are **not** leaked into L2 (drop-all working) while required prefixes are.

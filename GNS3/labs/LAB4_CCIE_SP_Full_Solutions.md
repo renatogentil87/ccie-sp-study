@@ -10,7 +10,7 @@
 > - **SRv6 locator** `fc00:1:<R#>::/48` (Emerald), F3216 uSID.
 > - **Flex-Algo 129** min-delay, `include-all BLUE`.
 > - **Colors:** 300/301 explicit-SID TE, 400 ODN min-delay.
-> - **EVI 2001** (R1↔R16 Red), **EVI 2002** (R14↔R15, AC-IDs 2142/2152).
+> - **EVI 2001** (R31↔R16 Red), **EVI 2002** (R14↔R15, AC-IDs 2142/2152).
 > - **mVPN Profile 3** (BGP C-multicast, mLDP P2MP).
 
 ---
@@ -19,7 +19,7 @@
 
 | AS | Name | IGP (LAB4) | Transport | Routers |
 |----|------|------------|-----------|---------|
-| 65100 | Emerald | IS-IS **multi-level** | **SRv6** | R1(PE) R2(PE) R3(P) R4(P) R5(ASBR) R6(ASBR) R7(RR) R8(RR+PCE) |
+| 65100 | Emerald | IS-IS **multi-level** | **SRv6** | R31(PE) R2(PE) R3(P) R4(P) R5(ASBR) R6(ASBR) R7(RR) R8(RR+PCE) |
 | 65200 | Garnet | OSPF Area 0 + **RSVP-TE** | SR-MPLS | R11(P) R12(ASBR) R13(P) R14(PE) R15(PE) R16(PE) R19(RR+PCE) |
 | 65300 | Gold | IS-IS **multi-level** | **SR-MPLS** | R20(ASBR/PE) R21(ASBR/PE) R22(PE) R23(PE) R30(RR+PCE) |
 
@@ -57,9 +57,9 @@ Prefix-SID label map (SRGB 16000, index ×10):
 
 ### Task 1.1 — IS-IS multi-level design (Emerald AS 65100)
 
-**Design:** single instance `EMERALD`, area 49.0001, dual-stack single-topology, wide metrics at both levels. Level by role: R1/R2/R5/R6 = L1-only; R3/R4 = L1/L2; R7/R8 = L2-only. Overload-bit on RRs. L2→L1 route-leaking of remote-PE loopbacks so SR prefix-SIDs resolve in the L1 edge. Keychain `ISIS-KEY-L4` referenced (built in Task 5.1).
+**Design:** single instance `EMERALD`, area 49.0001, dual-stack single-topology, wide metrics at both levels. Level by role: R31/R2/R5/R6 = L1-only; R3/R4 = L1/L2; R7/R8 = L2-only. Overload-bit on RRs. L2→L1 route-leaking of remote-PE loopbacks so SR prefix-SIDs resolve in the L1 edge. Keychain `ISIS-KEY-L4` referenced (built in Task 5.1).
 
-#### R1 (PE, L1-only) — IOS-XR
+#### R31 (PE, L1-only) — IOS-XR
 
 ```
 key chain ISIS-KEY-L4
@@ -174,7 +174,7 @@ router isis EMERALD
 
 **Verify:**
 ```
-show isis neighbors                 ! L1 on R1/R2/R5/R6, L1L2 on R3/R4, L2 on R7/R8
+show isis neighbors                 ! L1 on R31/R2/R5/R6, L1L2 on R3/R4, L2 on R7/R8
 show isis database level-1
 show isis database level-2
 show route 150.1.7.7/32             ! on R1: resolves via leaked L1 route (not just default)
@@ -393,9 +393,9 @@ traceroute sr-mpls ...                                       ! forced R13->R16->
 
 ### Task 1.5 — SRv6 on Emerald (AS 65100): F3216 uSID locators, PSP/USD, locator tags, SRv6 L3VPN transport
 
-**Design:** Native SRv6 on R1–R8 using uSID (F3216). Locator per node from `fc00:1:<R#>::/48`. End/End.X SIDs with PSP+USD. Locators tagged 1000 for controlled leaking. R1/R2 VRFs use per-VRF SRv6 SIDs (End.DT4/End.DT6) instead of MPLS labels.
+**Design:** Native SRv6 on R1–R8 using uSID (F3216). Locator per node from `fc00:1:<R#>::/48`. End/End.X SIDs with PSP+USD. Locators tagged 1000 for controlled leaking. R31/R2 VRFs use per-VRF SRv6 SIDs (End.DT4/End.DT6) instead of MPLS labels.
 
-#### R1 (PE) — IOS-XR
+#### R31 (PE) — IOS-XR
 
 ```
 segment-routing
@@ -603,7 +603,7 @@ l2vpn
  xconnect group RED
   p2p RED-PW
    interface GigabitEthernet0/0/0/3.100     ! customer access (R27 side)
-   neighbor ipv4 150.1.1.1 pw-id 2001
+   neighbor ipv4 150.1.31.31 pw-id 2001
  !
 !
 ```
@@ -664,7 +664,7 @@ show bgp l2vpn evpn
 
 ### Task 2.2 — L3VPN: Inter-AS Option B on ALL inter-AS links, PE-CE BGP+OSPF, as-override, redistribute-connected
 
-**Design rule:** every inter-AS VPNv4/VPNv6 handoff is Option B (eBGP VPNv4 between ASBR pairs, next-hop-self + fresh label, `retain route-target all`). No Option A anywhere. Green intra-AS: R15↔R17 OSPF, R16↔R18 eBGP 65910. R1/R20 use `redistribute connected` with a scoping route-policy. OSPF PE-CE uses down-bit/domain-tag. as-override on shared-ASN spokes.
+**Design rule:** every inter-AS VPNv4/VPNv6 handoff is Option B (eBGP VPNv4 between ASBR pairs, next-hop-self + fresh label, `retain route-target all`). No Option A anywhere. Green intra-AS: R15↔R17 OSPF, R16↔R18 eBGP 65910. R31/R20 use `redistribute connected` with a scoping route-policy. OSPF PE-CE uses down-bit/domain-tag. as-override on shared-ASN spokes.
 
 #### R12 (ASBR) — Option B VPNv4 to Gold R21 — IOS-XR
 
@@ -717,7 +717,7 @@ router bgp 65200
  vrf GREEN
   rd 65200:100
   address-family ipv4 unicast
-   redistribute connected route-policy GREEN-CONN   ! (style practice; see R1/R20)
+   redistribute connected route-policy GREEN-CONN   ! (style practice; see R31/R20)
   neighbor 192.168.7.18
    remote-as 65910
    address-family ipv4 unicast
@@ -726,7 +726,7 @@ router bgp 65200
     as-override                                      ! rewrite 65910 so spoke accepts
 ```
 
-#### R1 and R20 — redistribute connected, scoped — IOS-XR
+#### R31 and R20 — redistribute connected, scoped — IOS-XR
 
 ```
 ! R1 (Emerald PE, Blue VRF toward R32); R20 (Gold PE, Yellow VRF toward R24)
@@ -756,7 +756,7 @@ router bgp 65100
 show bgp vpnv4 unicast vrf GREEN
 show bgp vpnv4 unicast neighbor 20.12.21.21 advertised-routes   ! NH-self + new label each Option B hop
 show route vrf GREEN <prefix>
-show bgp vpnv4 unicast vrf BLUE                                 ! R1/R20 leak only intended connecteds
+show bgp vpnv4 unicast vrf BLUE                                 ! R31/R20 leak only intended connecteds
 ```
 
 ### Task 2.3 — Multicast VPN: mVPN Profile 3 (BGP C-multicast, mLDP P2MP core)
@@ -1193,7 +1193,7 @@ router ospf GARNET
 
 ### Task 5.1 — Management plane protection + IS-IS keychain (completes Task 1.1)
 
-**Design:** MPP inband on R1,R6,R12,R14,R20 permitting SSH+SNMP only from 10.255.0.0/24, explicitly denying Telnet/XML/TFTP. Complete `ISIS-KEY-L4` HMAC-MD5 with infinite lifetimes, applied for hello+LSP at both IS-IS levels on Emerald core.
+**Design:** MPP inband on R31,R6,R12,R14,R20 permitting SSH+SNMP only from 10.255.0.0/24, explicitly denying Telnet/XML/TFTP. Complete `ISIS-KEY-L4` HMAC-MD5 with infinite lifetimes, applied for hello+LSP at both IS-IS levels on Emerald core.
 
 #### R14 (and R1,R6,R12,R20) — MPP inband — IOS-XR
 
@@ -1478,7 +1478,7 @@ ansible_python_interpreter=/usr/bin/python3
 
 | Section | Headline checks |
 |---|---|
-| 1.1 | `show isis neighbors` (L1/L1L2/L2), `show route 150.1.7.7/32` on R1 (leaked) |
+| 1.1 | `show isis neighbors` (L1/L1L2/L2), `show route 150.1.7.7/32` on R31 (leaked) |
 | 1.2 | `show bgp ipv4 labeled-unicast 150.3.22.22/32`, `show mpls forwarding` |
 | 1.3 | `show isis segment-routing label table`, both R14/R15 originate 17140 |
 | 1.4 | `show segment-routing traffic-eng policy color 300 detail` (SID list + BSID 15300) |
@@ -1498,4 +1498,4 @@ ansible_python_interpreter=/usr/bin/python3
 | 6.1 | `show grpc status`, `show telemetry ... subscription` |
 | 6.3 | `devices device * check-sync` → in-sync after reconcile |
 
-> **LAB4 vs LAB3 recap:** multi-level IS-IS · prefix-SID ×10 · Flex-Algo include-all · explicit SID-lists w/ adj-SIDs · SRv6 in Emerald · ODN 3000us ECMP margin · Option B everywhere · EVI 2001/2002 · mVPN Profile 3 · QoS ingress-mark+EXP · redistribute-connected R1/R20 · SoO on Blue R25 · 6VPE for Green · RSVP MPLS-TE AS65200 · BFD for IS-IS · Flowspec+TCP-AO+RSVP-auth · NSO reconcile · Ansible encoding MCQ.
+> **LAB4 vs LAB3 recap:** multi-level IS-IS · prefix-SID ×10 · Flex-Algo include-all · explicit SID-lists w/ adj-SIDs · SRv6 in Emerald · ODN 3000us ECMP margin · Option B everywhere · EVI 2001/2002 · mVPN Profile 3 · QoS ingress-mark+EXP · redistribute-connected R31/R20 · SoO on Blue R25 · 6VPE for Green · RSVP MPLS-TE AS65200 · BFD for IS-IS · Flowspec+TCP-AO+RSVP-auth · NSO reconcile · Ansible encoding MCQ.

@@ -4,11 +4,11 @@
 **Level:** CCIE SP
 **Prerequisite:** WB00–WB04 complete — IGP + LDP transport in AS65200; targeted-LDP capable. (L3VPN/WB05 not strictly required but assumed in place.)
 **Format:** Tasks only. No configurations provided.
-**Reference:** See `00_topology_reference.md`. Red VLAN 100 attachment circuits: R27 on R16 f3/0, R28 on R14 f4/0, R29 on R1 g2/0.
+**Reference:** See `00_topology_reference.md`. Red VLAN 100 attachment circuits: R27 on R16 f3/0, R28 on R14 f4/0, R29 on R31 f0/0.
 
 > **Snapshot before you start:** `WB06-00-start`.
 
-**Scope note:** This workbook builds AToM/VPWS **within AS65200** (R14 ↔ R16) carrying the Red VLAN 100 CEs R27 and R28. The R29/R1 (AS65100) cross-AS segment is handled in WB07 (VPLS cross-AS options).
+**Scope note:** This workbook builds AToM/VPWS **within AS65200** (R14 ↔ R16) carrying the Red VLAN 100 CEs R27 and R28. The R29/R31 (AS65100) cross-AS segment is handled in WB07 (VPLS cross-AS options).
 
 ---
 
@@ -69,7 +69,7 @@ Introduce one fault at a time, diagnose from symptoms, repair, and restore befor
 - [ ] Four faults (VC-ID, MTU, AC down, transport LSP) reproduced, diagnosed, repaired.
 - [ ] Snapshots saved: `WB06-00-start`, `WB06-01-pw-up`, `WB06-02-pw-redundancy`, `WB06-03-complete`.
 
-**Next:** WB07 — VPLS (multipoint L2VPN) extends the Red service to R29/R1 and introduces H-VPLS.
+**Next:** WB07 — VPLS (multipoint L2VPN) extends the Red service to R29/R31 and introduces H-VPLS.
 
 ---
 

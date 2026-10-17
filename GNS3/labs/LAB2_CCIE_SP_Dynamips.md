@@ -22,7 +22,7 @@
 
 | AS | Name | IGP (LAB2) | Routers | RRs | ASBRs | PEs | P routers |
 |---|---|---|---|---|---|---|---|
-| **65100** | SP-A | IS-IS **multi-level (L1/L2)** | R1–R8 | R7, R8 | R5, R6 | R1, R2 | R3, R4 |
+| **65100** | SP-A | IS-IS **multi-level (L1/L2)** | R1–R8 | R7, R8 | R5, R6 | R31, R2 | R3, R4 |
 | **65200** | SP-B | OSPF, **stub + NSSA areas** | R11–R16, R19 | R19 | R12 | R14, R15, R16 | R11, R13 |
 | **65300** | SP-C | IS-IS **multi-level (L1/L2)** | R20–R23, R30 | R30 | R20, R21 | R20, R21, R22, R23 | — |
 
@@ -37,12 +37,12 @@ CE routers: R9, R10 (Green), R17, R18 (Green/OSPF), R24, R26 (Yellow), R25, R32 
 #### Task 1.1 — Define the area split [2 points]
 Split AS 65100 into two IS-IS areas instead of LAB1's single L2-only domain:
 - **Area 49.0001** (L1/L2 backbone): R3, R4, R5, R6, R7, R8
-- **Area 49.0011** (L1-only edge): R1, R2
-- R3 and R4 are the **L1/L2 border routers** connecting the edge area to the backbone (R1↔R3, R2↔R4 per the Core link table).
-- Use the existing NET-IDs from the topology reference's system-ID column, but change the **area portion** of R1 and R2's NET to `49.0011` (keep their system-ID octets identical).
+- **Area 49.0011** (L1-only edge): R31, R2
+- R3 and R4 are the **L1/L2 border routers** connecting the edge area to the backbone (R31↔R3, R2↔R4 per the Core link table).
+- Use the existing NET-IDs from the topology reference's system-ID column, but change the **area portion** of R31 and R2's NET to `49.0011` (keep their system-ID octets identical).
 
 #### Task 1.2 — Level assignment per router [3 points]
-- R1, R2: `is-type level-1` (pure L1 edge routers).
+- R31, R2: `is-type level-1` (pure L1 edge routers).
 - R3, R4: `is-type level-1-2` (border routers — must run both levels).
 - R5, R6, R7, R8: `is-type level-2-only` (pure backbone — no L1 needed since the only L1 area hangs off R3/R4).
 
@@ -52,13 +52,13 @@ Split AS 65100 into two IS-IS areas instead of LAB1's single L2-only domain:
 - Loopback0 passive on all 8 routers, in whichever level(s) that router runs.
 
 #### Task 1.4 — Default route leaking into the L1 area [4 points]
-By default, L1-only routers (R1, R2) only know a default route toward the nearest L1/L2 border (ATT bit). Verify this default-route behavior is working. Then, as a CCIE-level exercise, configure **route leaking** (`redistribute` with `level-1-2` route-map / `set-overload-bit` is NOT what's wanted here — use **IS-IS inter-level route leaking**) on R3 to leak **R20's and R30's /32 loopbacks only** (not the whole L2 table) down into Area 49.0011, so R1/R2 have specific routes to AS 65300's RR and one ASBR in addition to the default. Use tagged route leaking (IS-IS route tag or a leaking route-map) so this is auditable.
+By default, L1-only routers (R31, R2) only know a default route toward the nearest L1/L2 border (ATT bit). Verify this default-route behavior is working. Then, as a CCIE-level exercise, configure **route leaking** (`redistribute` with `level-1-2` route-map / `set-overload-bit` is NOT what's wanted here — use **IS-IS inter-level route leaking**) on R3 to leak **R20's and R30's /32 loopbacks only** (not the whole L2 table) down into Area 49.0011, so R31/R2 have specific routes to AS 65300's RR and one ASBR in addition to the default. Use tagged route leaking (IS-IS route tag or a leaking route-map) so this is auditable.
 
 #### Task 1.5 — Wide metrics + P2P network type [2 points]
 Metric style **wide** domain-wide (both levels). All core links **point-to-point** network type.
 
 #### Task 1.6 — Verify multi-level IS-IS [0 points — verification]
-Confirm: R1/R2 show `ATT` bit learned from R3/R4 respectively, L1 database on R1/R2 contains only Area 49.0011 + the two leaked /32s + default, L2 database on R3–R8 contains all backbone routers, and full loopback reachability exists end-to-end within AS 65100.
+Confirm: R31/R2 show `ATT` bit learned from R3/R4 respectively, L1 database on R31/R2 contains only Area 49.0011 + the two leaked /32s + default, L2 database on R3–R8 contains all backbone routers, and full loopback reachability exists end-to-end within AS 65100.
 
 #### Task 1.7 — Snapshot [2 points]
 `LAB2-sec1a-isis-ml-as65100`
@@ -161,14 +161,14 @@ Build the VRF/RT/RD plan below (same five customers as LAB1's design, but note t
 
 | Customer | VRF Name | RD (per PE, use `<PE-loopback-last-octet>:<customer-id>`) | RT | PE-CE Protocol (LAB2) |
 |---|---|---|---|---|
-| Green | `GREEN` | e.g. `1:910` on R1 | `65910:910` both import/export | eBGP (R1↔R9, R1↔R10, R2↔R10) — **unchanged from LAB1** |
+| Green | `GREEN` | e.g. `1:910` on R31 | `65910:910` both import/export | eBGP (R31↔R9, R31↔R10, R2↔R10) — **unchanged from LAB1** |
 | Green-OSPF→**Static** | `GREEN` (same VRF, R15↔R17 leg) | same RD scheme on R15 | same RT | **STATIC PE-CE instead of OSPF** on R15↔R17 |
 | Yellow | `YELLOW` | `1:24` scheme | `65024:24` | eBGP — unchanged |
 | Blue | `BLUE` | `1:25` scheme | `65025:25` | eBGP — unchanged, but Inter-AS option changes (Task 2.5) |
 | Red (VPLS) | n/a (L2) | n/a | New VPN-ID (Task 2.6) | VPLS/VPWS |
 
 ### Task 2.2 — Green customer VRF + eBGP legs [5 points]
-Create VRF `GREEN` on R1 and R2 per the RD/RT table above. Configure eBGP PE-CE (AS 65910) on R1↔R9, R1↔R10, R2↔R10 exactly as wired in the topology reference's PE-CE link table. Redistribute/exchange VPNv4 routes for Green between R1 and R2 via MP-iBGP (through the AS65100 RRs).
+Create VRF `GREEN` on R31 and R2 per the RD/RT table above. Configure eBGP PE-CE (AS 65910) on R31↔R9, R31↔R10, R2↔R10 exactly as wired in the topology reference's PE-CE link table. Redistribute/exchange VPNv4 routes for Green between R31 and R2 via MP-iBGP (through the AS65100 RRs).
 
 ### Task 2.3 — Green-leg static PE-CE (R15↔R17) — replaces LAB1's OSPF PE-CE [8 points]
 Where LAB1 used OSPF between R15 and R17, LAB2 uses **static routing**:
@@ -219,9 +219,9 @@ From each CE (R9, R10, R17, R18, R24, R25, R26, R32), ping/traceroute the releva
 ### Task 3.1 — mVPN Profile 3 (BGP C-Multicast Signaling) instead of Profile 0 [20 points]
 LAB1 used **Profile 0** (PIM-SM default MDTs, PIM C-multicast signaling via the GRE default MDT). LAB2 uses **mVPN Profile 3** (BGP-based MDT and BGP C-multicast signaling, no PIM in the SP core for customer multicast) for the Green VPN:
 
-- **3.1.1 — [4 points]** Configure a **BGP-based MDT** for VRF `GREEN` on R1, R2, R15: enable `address-family ipv4 mdt` under MP-BGP (in addition to the vpnv4 AF) so MDT membership is signaled via BGP (AFI/SAFI MDT, RFC 6037-style) rather than PIM MSDP/Auto-RP style discovery.
+- **3.1.1 — [4 points]** Configure a **BGP-based MDT** for VRF `GREEN` on R31, R2, R15: enable `address-family ipv4 mdt` under MP-BGP (in addition to the vpnv4 AF) so MDT membership is signaled via BGP (AFI/SAFI MDT, RFC 6037-style) rather than PIM MSDP/Auto-RP style discovery.
 - **3.1.2 — [4 points]** Configure the VRF-level multicast with `mdt default` and `mdt data` bound to the BGP-signaled group ranges, confirming no PIM MDT discovery messages are needed in the P-network core for MDT setup (contrast with Profile 0's reliance on PIM in the core — call this out explicitly in notes).
-- **3.1.3 — [6 points]** Enable **BGP C-multicast signaling**: configure the `ipv4 mvpn` (or vendor-equivalent `address-family ipv4 mvpn`) BGP AF between the Green PEs (R1, R2, R15) so that PIM Join/Prune information from customer sites is signaled as BGP C-multicast routes (Type 6/7 in RFC 6514 terms) across the backbone instead of native PIM C-instance signaling through a GRE MDT tunnel.
+- **3.1.3 — [6 points]** Enable **BGP C-multicast signaling**: configure the `ipv4 mvpn` (or vendor-equivalent `address-family ipv4 mvpn`) BGP AF between the Green PEs (R31, R2, R15) so that PIM Join/Prune information from customer sites is signaled as BGP C-multicast routes (Type 6/7 in RFC 6514 terms) across the backbone instead of native PIM C-instance signaling through a GRE MDT tunnel.
 - **3.1.4 — [4 points]** Build a simple multicast source/receiver test: have R9 (or R10) source a multicast stream and R17 (or R18) join it as a receiver, both inside VRF GREEN. Verify the (S,G) state is correctly signaled end-to-end using BGP C-multicast routes (check `show bgp ipv4 mvpn` / `show ip pim vrf GREEN mdt bgp` equivalents) and that the data plane multicast flow is received.
 - **3.1.5 — [2 points]** Document the three signaling differences between Profile 0 and Profile 3 you directly observed: (a) MDT discovery mechanism, (b) C-multicast signaling transport, (c) core PIM dependency.
 
@@ -245,7 +245,7 @@ Confirm Green mVPN Profile 3 multicast state and Blue SoO protection both operat
 Build MPLS-TE across AS65100's core using **different explicit paths** than any LAB1 TE design (document your chosen paths so grading/review can confirm divergence from LAB1):
 
 - **4.1.1 — [3 points]** Enable MPLS-TE globally and per-interface on all AS65100 core links (R1–R8), and enable the RSVP and IS-IS (or OSPF, N/A here since 65100 is IS-IS) TE extensions needed for TE LSP signaling (wide metrics already enabled in Section 1 supports this).
-- **4.1.2 — [5 points]** Build **Tunnel A**: R1 → R8, explicit path **R1→R3→R5→R8** (avoiding R2/R4/R6 entirely) using an explicit-path `next-address` list.
+- **4.1.2 — [5 points]** Build **Tunnel A**: R1 → R8, explicit path **R31→R3→R5→R8** (avoiding R2/R4/R6 entirely) using an explicit-path `next-address` list.
 - **4.1.3 — [5 points]** Build **Tunnel B**: R2 → R7, explicit path **R2→R4→R6→R5→R8→R7** (a deliberately longer, diverse path from Tunnel A, sharing no links with Tunnel A except none — verify path diversity by comparing hop lists).
 - **4.1.4 — [3 points]** Verify both tunnels are `Up` (`show mpls traffic-eng tunnels brief`), confirm the actual signaled path matches the explicit path requested (no CSPF substitution), and confirm the tunnels carry no VPN traffic yet (that's Task 4.3).
 
@@ -280,7 +280,7 @@ Dynamips/IOS 15.2 on 7200 does not support full BGP Flowspec (`address-family ip
 
 ### Task 5.3 — RSVP Authentication (replaces LAB1's LDP-only auth scope) [16 points]
 LAB1 covered LDP session authentication. LAB2 adds **RSVP (TE) neighbor authentication** on top:
-- **5.3.1 — [4 points]** Configure **RSVP neighbor authentication** (MD5-based, via `ip rsvp authentication` with a key or key-chain) on the AS65100 core links carrying the Section 4 TE tunnels (R1↔R3, R3↔R5, R5↔R8, R2↔R4, R4↔R6, R6↔R5, R5↔R8↔R7 segments as applicable to Tunnels A/B).
+- **5.3.1 — [4 points]** Configure **RSVP neighbor authentication** (MD5-based, via `ip rsvp authentication` with a key or key-chain) on the AS65100 core links carrying the Section 4 TE tunnels (R31↔R3, R3↔R5, R5↔R8, R2↔R4, R4↔R6, R6↔R5, R5↔R8↔R7 segments as applicable to Tunnels A/B).
 - **5.3.2 — [4 points]** Enable **RSVP authentication challenge/response** (the anti-replay/life-cycle extension, `ip rsvp authentication challenge`) in addition to the base key-based auth, and explain in notes what the challenge mechanism protects against beyond a plain shared-key MD5 check (replay attacks on RSVP Path/Resv messages).
 - **5.3.3 — [4 points]** Verify RSVP neighbors show as authenticated (`show ip rsvp authentication` / `show ip rsvp neighbor`) and that Tunnels A and B (Section 4) remain `Up` with authentication enabled.
 - **5.3.4 — [2 points]** Also apply **LDP session authentication** (MD5, via key-chain or plain password per interface/session) on the same AS65100 core links, so both the LDP and RSVP control planes are authenticated — confirming the two authentication mechanisms are configured independently and don't interfere with each other.
@@ -294,14 +294,14 @@ LAB1 covered LDP session authentication. LAB2 adds **RSVP (TE) neighbor authenti
 ## Section 6 — Operations: 6VPE (VPN IPv6) and IPv6 PE-CE [45 points]
 
 ### Task 6.1 — IPv6 addressing baseline [4 points]
-Apply the IPv6 scheme from the topology reference (loopbacks and core links) to all AS65100 and AS65200 routers that will participate in 6VPE (R1, R2 as PEs; R7/R8 as RRs; plus R15 for the IPv6 PE-CE leg). Enable `ipv6 unicast-routing`.
+Apply the IPv6 scheme from the topology reference (loopbacks and core links) to all AS65100 and AS65200 routers that will participate in 6VPE (R31, R2 as PEs; R7/R8 as RRs; plus R15 for the IPv6 PE-CE leg). Enable `ipv6 unicast-routing`.
 
 ### Task 6.2 — 6VPE (VPN IPv6) — not just 6PE global [18 points]
 LAB1 covered only **6PE** (global IPv6 reachability over an IPv4 MPLS core using a single global 6PE label). LAB2 requires **6VPE**, extending Green's L3VPN to carry **customer IPv6 VPN prefixes** (not global-table IPv6):
 
-- **6.2.1 — [4 points]** Extend VRF `GREEN` on R1, R2, and R15 to be dual-stack: add an IPv6 address family under the VRF (`address-family ipv6 vrf GREEN` style, i.e. a VRF with both an RD/RT for v4 and an IPv6-capable instance — on classic IOS this is typically the same VRF with `ipv6` added via `rd`/route-target reuse, since IOS VRF definitions historically needed `vrf definition` with both AFs, or dual `ip vrf`/separate IPv6 VRF table depending on IOS 15.2 feature support — document which VRF model (classic `ip vrf` vs. `vrf definition` with dual AF) your IOS 15.2(4)M11 image supports and use it).
-- **6.2.2 — [5 points]** Enable the **VPNv6 address family** in MP-BGP between R1, R2, and R15 (via the RRs, R7/R8) — `address-family vpnv6` — so customer IPv6 VPN routes are signaled with their own RD/RT (reuse Green's existing RT scheme, extended for v6, e.g., same numeric RT value under the vpnv6 AF).
-- **6.2.3 — [4 points]** Assign IPv6 addressing inside VRF GREEN on the R1↔R9, R1↔R10, R2↔R10 PE-CE links (new IPv6 subnets you define, consistent with the topology reference's general IPv6 numbering style) and configure **IPv6 eBGP PE-CE** peering (AS 65910) carrying IPv6 customer prefixes into VPNv6.
+- **6.2.1 — [4 points]** Extend VRF `GREEN` on R31, R2, and R15 to be dual-stack: add an IPv6 address family under the VRF (`address-family ipv6 vrf GREEN` style, i.e. a VRF with both an RD/RT for v4 and an IPv6-capable instance — on classic IOS this is typically the same VRF with `ipv6` added via `rd`/route-target reuse, since IOS VRF definitions historically needed `vrf definition` with both AFs, or dual `ip vrf`/separate IPv6 VRF table depending on IOS 15.2 feature support — document which VRF model (classic `ip vrf` vs. `vrf definition` with dual AF) your IOS 15.2(4)M11 image supports and use it).
+- **6.2.2 — [5 points]** Enable the **VPNv6 address family** in MP-BGP between R31, R2, and R15 (via the RRs, R7/R8) — `address-family vpnv6` — so customer IPv6 VPN routes are signaled with their own RD/RT (reuse Green's existing RT scheme, extended for v6, e.g., same numeric RT value under the vpnv6 AF).
+- **6.2.3 — [4 points]** Assign IPv6 addressing inside VRF GREEN on the R31↔R9, R31↔R10, R2↔R10 PE-CE links (new IPv6 subnets you define, consistent with the topology reference's general IPv6 numbering style) and configure **IPv6 eBGP PE-CE** peering (AS 65910) carrying IPv6 customer prefixes into VPNv6.
 - **6.2.4 — [3 points]** Verify a Green IPv6 customer prefix originated at R9 (or R10) is visible in `show bgp vpnv6 unicast vrf GREEN` on R2, and that it carries the correct RT/RD and arrived via MP-iBGP VPNv6 (not via 6PE's global table).
 - **6.2.5 — [2 points]** Verify end-to-end IPv6 reachability between a Green CE site in AS65100 (R9/R10) and the Green CE at R17/R18 reachable via the AS65200 leg (R15) — confirming VPNv6 label imposition/disposition works across the iBGP RR path, and that this is clearly VPN-scoped IPv6 (private-equivalent per-customer IPv6 space), not global reachability.
 

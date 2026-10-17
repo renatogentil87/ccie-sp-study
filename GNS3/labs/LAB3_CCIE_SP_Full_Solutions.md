@@ -4,7 +4,7 @@
 **Companion to:** `LAB3_CCIE_SP_Full.md` (tasks-only workbook).
 
 > **Conventions used in this solution set**
-> - Loopback0: `150.<AS-last>.<R#>.<R#>/32` (R1=150.1.1.1, R11=150.2.11.11, R20=150.3.20.20).
+> - Loopback0: `150.<AS-last>.<R#>.<R#>/32` (R1=150.1.31.31, R11=150.2.11.11, R20=150.3.20.20).
 > - IPv6 Loopback0: `2001:db8:<AS-last>::<R#>/128` (R1=2001:db8:1::1, R20=2001:db8:3::20).
 > - AS65100 links `10.x.y.z/24`, AS65200 links `20.x.y.z/24`, AS65300 links `30.x.y.z/24`.
 > - PE-CE links `192.168.<CE#>.<Y>/24`.
@@ -74,7 +74,7 @@ end-group
 apply-group ISIS-INSTANCE-COMMON ISIS-INTF-COMMON ISIS-AUTH-COMMON
 !
 router isis CORE
- net 49.0001.1500.1001.0001.00          ! system-id from 150.1.1.1
+ net 49.0001.1500.1001.0001.00          ! system-id from 150.1.31.31
  address-family ipv4 unicast
  !
  address-family ipv6 unicast
@@ -248,7 +248,7 @@ router bgp 65100
    use af-group LU-CLIENT
   !
  !
- neighbor 150.1.1.1
+ neighbor 150.1.31.31
   use neighbor-group RRC
  !
  neighbor 150.1.5.5
@@ -269,7 +269,7 @@ router bgp 65100
  address-family ipv4 unicast
   allocate-label all
  !
- neighbor 150.1.1.1
+ neighbor 150.1.31.31
   remote-as 65100
   update-source Loopback0
   address-family ipv4 labeled-unicast
@@ -346,11 +346,11 @@ router isis CORE
 ```
 (R1 index 1 → 16001, R8 index 8 → 16008, etc.)
 
-#### Anycast SID on R1 and R2 (shared Loopback99, SID 99, n-flag-clear)
+#### Anycast SID on R31 and R2 (shared Loopback99, SID 99, n-flag-clear)
 
 ```
 interface Loopback99
- ipv4 address 150.1.99.99 255.255.255.255   ! SAME address on R1 and R2
+ ipv4 address 150.1.99.99 255.255.255.255   ! SAME address on R31 and R2
 !
 router isis CORE
  interface Loopback99
@@ -610,7 +610,7 @@ router isis CORE
  !
 ```
 
-#### SR policies R1→R5 constrained per algo
+#### SR policies R31→R5 constrained per algo
 ```
 segment-routing
  traffic-eng

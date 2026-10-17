@@ -12,9 +12,9 @@ VPLS is a multipoint L2VPN: all member PEs join one emulated bridge (one broadca
 
 **VPLS is configured within AS 65200 only (R14 ↔ R16).** Reasons:
 - VPLS uses a full mesh of directed-LDP PWs between member PEs' loopbacks, requiring all members in one IGP/LDP domain.
-- Cross-AS VPLS (adding R1 in AS65100) is not natively supported as a flat mesh — it needs inter-AS stitching / H-VPLS spoke across the border, which depends on WB09 inter-AS reachability.
+- Cross-AS VPLS (adding R31 in AS65100) is not natively supported as a flat mesh — it needs inter-AS stitching / H-VPLS spoke across the border, which depends on WB09 inter-AS reachability.
 
-R14 (toward R28) and R16 (toward R27) form the VPLS core. R1/R29 is added later as an H-VPLS spoke (Section 4) once cross-AS reachability exists.
+R14 (toward R28) and R16 (toward R27) form the VPLS core. R31/R29 is added later as an H-VPLS spoke (Section 4) once cross-AS reachability exists.
 
 ---
 
@@ -163,13 +163,13 @@ interface GigabitEthernet2/0.100
 l2 vfi RED manual
  vpn id 100
  neighbor 150.2.16.16 encapsulation mpls      ! core mesh (to R16)
- neighbor 150.1.1.1 100 encapsulation mpls no-split-horizon   ! spoke from R1 (U-PE)
+ neighbor 150.1.31.31 100 encapsulation mpls no-split-horizon   ! spoke from R31 (U-PE)
 !
 ```
 
 > The spoke PW to R1 is added with **`no-split-horizon`** so the N-PE (R14) *can* forward between the spoke and the core PWs — a spoke is allowed to break the split-horizon rule because it is not part of the full mesh. Core PWs (R14↔R16) keep split-horizon. R1 (U-PE) runs a single point-to-point PW — simpler, no VFI on the spoke.
 
-> **Cross-AS blocker (same as WB06):** the spoke PW R1→R14 crosses AS65100↔AS65200. It needs loopback 150.2.14.14 reachable from R1 and a targeted-LDP session across the border — provided by **WB09 inter-AS** (Option B/C or BGP-LU / WB14 unified MPLS). Until then the spoke PW stays down; the intra-AS R14↔R16 VPLS mesh works independently.
+> **Cross-AS blocker (same as WB06):** the spoke PW R31→R14 crosses AS65100↔AS65200. It needs loopback 150.2.14.14 reachable from R1 and a targeted-LDP session across the border — provided by **WB09 inter-AS** (Option B/C or BGP-LU / WB14 unified MPLS). Until then the spoke PW stays down; the intra-AS R14↔R16 VPLS mesh works independently.
 
 ---
 
@@ -188,7 +188,7 @@ interface FastEthernet3/0.100
  encapsulation dot1Q 100
  ip address 172.16.100.27 255.255.255.0
 !
-! R29 (behind R1) — reachable only after H-VPLS spoke (Section 4) + WB09
+! R29 (behind R31) — reachable only after H-VPLS spoke (Section 4) + WB09
 interface GigabitEthernet2/0.100
  encapsulation dot1Q 100
  ip address 172.16.100.29 255.255.255.0
@@ -234,7 +234,7 @@ show vfi name RED
   Neighbors connected via pseudowires:
    Peer Address    VC ID   S
    150.2.16.16     100     Y     <- core mesh, split-horizon ON
-   150.1.1.1       100     N     <- H-VPLS spoke, split-horizon OFF (after WB09)
+   150.1.31.31       100     N     <- H-VPLS spoke, split-horizon OFF (after WB09)
 ```
 
 > A healthy intra-AS VPLS shows the VFI **up** on R14 and R16 with the peer PW **up** and split-horizon **Y** between them. R27↔R28 ping and learn each other's MACs. The R1 spoke row only appears/comes up after WB09 provides cross-AS loopback reachability — expected to be down until then.
@@ -249,4 +249,4 @@ show vfi name RED
   2. **Inter-AS Option E / border VFI stitching** — stitch the two domains' PWs at the ASBR; limited/awkward on IOS classic 7200.
   3. **MS-PW** for point-to-point segments (that is AToM/WB06, not multipoint VPLS).
 - **Dynamips/7200 image caveats:** `l2vpn vfi context` / `bridge-domain` / `service instance` syntax may not be fully supported — prefer the classic `l2 vfi RED manual` + `interface Vlan100 / xconnect vfi RED` form. Autodiscovery (BGP L2VPN AF) VPLS may also be unavailable; use manual neighbors.
-- **Bottom line:** keep Red VPLS inside AS65200 (R14↔R16) for a working multipoint service; bring R1/R29 in via H-VPLS spoke after WB09. Do not expect a single cross-AS VPLS domain to come up on this platform without inter-AS plumbing.
+- **Bottom line:** keep Red VPLS inside AS65200 (R14↔R16) for a working multipoint service; bring R31/R29 in via H-VPLS spoke after WB09. Do not expect a single cross-AS VPLS domain to come up on this platform without inter-AS plumbing.

@@ -13,7 +13,7 @@
 
 | Role | Routers | Notes |
 |------|---------|-------|
-| PE (6PE/6VPE) | R1, R2 | IPv6 edge, label IPv6 to IPv4 next-hop |
+| PE (6PE/6VPE) | R31, R2 | IPv6 edge, label IPv6 to IPv4 next-hop |
 | P (unchanged) | R3, R4 | IPv4 LDP only — **do NOT enable IPv6** |
 | RR | R7, R8 | Reflect `ipv6` and `vpnv6` address-families |
 | CE (6PE global) | R9 (eBGP), R10 | IPv6 PE-CE in global table |
@@ -26,21 +26,21 @@
 **Concept:** PEs exchange IPv6 prefixes over the existing IPv4 iBGP session (via RR). Next-hop is encoded as an IPv4-mapped IPv6 address (`::ffff:a.b.c.d`). The core label switches on the IPv4 LSP; PEs impose an IPv6 explicit-null (or per-prefix) label. P routers never see IPv6.
 
 - [ ] **Task 1.1 — Enable IPv6 forwarding on PEs only. [1 point]**
-  On R1 and R2, enable `ipv6 unicast-routing` and global IPv6 CEF. Confirm R3/R4 remain IPv4-only.
-  *Verify:* `show ipv6 cef` present on R1/R2; absent/empty on R3/R4.
+  On R31 and R2, enable `ipv6 unicast-routing` and global IPv6 CEF. Confirm R3/R4 remain IPv4-only.
+  *Verify:* `show ipv6 cef` present on R31/R2; absent/empty on R3/R4.
 
 - [ ] **Task 1.2 — Add IPv6 PE-CE addressing (global). [1 point]**
-  Assign dual-stack IPv6 on the R1↔R9 PE-CE link (`192.168.1.0/24` link) and the R2↔R10 PE-CE link (`192.168.4.0/24` link). Use `2001:db8:1:19::/64` (R1-R9) and `2001:db8:1:210::/64` (R2-R10). Advertise CE IPv6 loopbacks (R9, R10) toward the PEs.
+  Assign dual-stack IPv6 on the R31↔R9 PE-CE link (`192.168.1.0/24` link) and the R2↔R10 PE-CE link (`192.168.4.0/24` link). Use `2001:db8:1:19::/64` (R1-R9) and `2001:db8:1:210::/64` (R2-R10). Advertise CE IPv6 loopbacks (R9, R10) toward the PEs.
   *Verify:* PE can ping CE IPv6 link + loopback directly.
 
 - [ ] **Task 1.3 — Activate the IPv6 address-family on the PE↔RR iBGP sessions. [2 points]**
-  On R1 and R2, under BGP activate the existing RR neighbors (R7 `150.1.7.7`, R8 `150.1.8.8`) in `address-family ipv6`. The transport session stays IPv4; only the AFI/SAFI is added.
+  On R31 and R2, under BGP activate the existing RR neighbors (R7 `150.1.7.7`, R8 `150.1.8.8`) in `address-family ipv6`. The transport session stays IPv4; only the AFI/SAFI is added.
   *Key requirement:* set `send-label` so IPv6 prefixes carry an MPLS label. Without a label the core cannot switch IPv6.
   *Verify:* `show bgp ipv6 unicast summary` shows the RR neighbors Up with a nonzero prefix count once CE routes exist.
 
 - [ ] **Task 1.4 — Fix the IPv6 next-hop so it is IPv4-mapped. [1 point]**
-  Ensure the PE advertises an IPv4-mapped next-hop (`::ffff:150.1.1.1` for R1) so the receiving PE resolves it over the IPv4 LSP. Confirm the RRs reflect `ipv6` without rewriting the next-hop (RRs do not need IPv6 forwarding, only the AF activated for reflection).
-  *Verify:* On R2, `show bgp ipv6 unicast <R9-loopback>` → next-hop `::FFFF:150.1.1.1`, with an in/out label bound.
+  Ensure the PE advertises an IPv4-mapped next-hop (`::ffff:150.1.31.31` for R1) so the receiving PE resolves it over the IPv4 LSP. Confirm the RRs reflect `ipv6` without rewriting the next-hop (RRs do not need IPv6 forwarding, only the AF activated for reflection).
+  *Verify:* On R2, `show bgp ipv6 unicast <R9-loopback>` → next-hop `::FFFF:150.1.31.31`, with an in/out label bound.
 
 ---
 
@@ -49,15 +49,15 @@
 **Concept:** Same PE/RR plumbing but IPv6 lives inside a VRF. The VPN label (bottom) identifies the VRF/CE; the IGP/LDP IPv4 label (top) carries the packet across the core. BGP SAFI is `vpnv6`.
 
 - [ ] **Task 2.1 — Add the IPv6 address-family to an existing VRF (dual-stack). [1 point]**
-  Take the Customer **Blue** VRF already defined on R1 (serving R32). Add an `address-family ipv6` under the VRF and attach the same RD, plus import/export route-targets for Blue. The VRF now carries both IPv4 and IPv6 (dual-stack VRF).
+  Take the Customer **Blue** VRF already defined on R31 (serving R32). Add an `address-family ipv6` under the VRF and attach the same RD, plus import/export route-targets for Blue. The VRF now carries both IPv4 and IPv6 (dual-stack VRF).
   *Verify:* `show vrf detail <Blue>` lists both IPv4 and IPv6 AFs with RD + RTs.
 
 - [ ] **Task 2.2 — Configure IPv6 PE-CE inside the VRF. [1 point]**
-  On R1 g1/0... — use the Blue PE-CE link to R32 (`192.168.3.0/24`). Add VRF IPv6 addressing `2001:db8:1:332::/64` and run eBGP (AS 65025) for IPv6 in the VRF address-family (per-VRF or per-neighbor IPv6 AF).
+  On R31 f4/0... — use the Blue PE-CE link to R32 (`192.168.3.0/24`). Add VRF IPv6 addressing `2001:db8:1:332::/64` and run eBGP (AS 65025) for IPv6 in the VRF address-family (per-VRF or per-neighbor IPv6 AF).
   *Verify:* `show bgp vpnv6 unicast vrf Blue summary` → R32 neighbor Up.
 
 - [ ] **Task 2.3 — Activate VPNv6 on the PE↔RR sessions. [2 points]**
-  On R1, R2, R7, R8 activate RR neighbors under `address-family vpnv6 unicast`. On R7/R8 set these as route-reflector-clients and ensure `send-community extended` (RTs are extended communities — without them VPNv6 import fails).
+  On R31, R2, R7, R8 activate RR neighbors under `address-family vpnv6 unicast`. On R7/R8 set these as route-reflector-clients and ensure `send-community extended` (RTs are extended communities — without them VPNv6 import fails).
   *Verify:* `show bgp vpnv6 unicast all summary` on PEs shows RR Up; `show bgp vpnv6 unicast all` on RR shows reflected Blue IPv6 prefixes.
 
 - [ ] **Task 2.4 — Build the second VRF endpoint and import. [1 point]**
@@ -72,7 +72,7 @@
   On R3 and R4: `show ipv6 route` empty, `show mpls forwarding-table` shows only IPv4 FECs. The transit label stack must be IPv4 LDP labels only.
 
 - [ ] **Task 3.2 — Label verification on PEs.**
-  `show mpls forwarding-table` on R1/R2 shows IPv6 prefixes (6PE) and VPNv6 prefixes (6VPE) with locally allocated labels (bottom-of-stack). Record the labels for your snapshot.
+  `show mpls forwarding-table` on R31/R2 shows IPv6 prefixes (6PE) and VPNv6 prefixes (6VPE) with locally allocated labels (bottom-of-stack). Record the labels for your snapshot.
 
 - [ ] **Task 3.3 — Data-plane: 6PE.**
   From R9 (global IPv6 CE) ping R10's IPv6 loopback end-to-end. Run `traceroute ipv6` and confirm the P routers appear as MPLS hops (label present), not as IPv6 hops.

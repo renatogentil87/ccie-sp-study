@@ -17,10 +17,10 @@
 Goal: Define per-customer VRFs on the PEs. Use a consistent, documented RD and RT scheme: **RD per-SP** (encode the AS and PE so RDs are globally unique) and **RT per-customer** (same RT across SPs for a given customer so routes import correctly later).
 
 - [ ] **Task 1.1 — RD/RT scheme. [2 points]** Design and write down your scheme before configuring. Suggested: RD = `<AS>:<customer-id>` or `<PE-loopback-derived>:<customer>`; RT = `<customer-global>:<customer>`. The RT must be identical for a customer across all ASes so WB09 inter-AS import works. Record the table.
-- [ ] **Task 1.2 — VRF GREEN (AS65100). [2 points]** Create VRF GREEN on R1 and R2. Assign the Green PE-CE interfaces to the VRF (R1 g1/0 to R9, R1 f3/0 to R10, R2 g1/0 to R10). Set RD and import/export RT for Green.
+- [ ] **Task 1.2 — VRF GREEN (AS65100). [2 points]** Create VRF GREEN on R31 and R2. Assign the Green PE-CE interfaces to the VRF (R31 f4/0 to R9, R1 f3/0 to R10, R2 g1/0 to R10). Set RD and import/export RT for Green.
 - [ ] **Task 1.3 — VRF GREEN (AS65200). [2 points]** Create VRF GREEN on R15 and R16. Assign R15 f0/0 (to R17, OSPF — see Section 3) and R16 g1/0 (to R18, eBGP) to VRF GREEN. Same Green RT, AS65200-local RD.
 - [ ] **Task 1.4 — VRF YELLOW. [2 points]** Create VRF YELLOW on R22 and R23 (AS65300) and on R16 (AS65200). Assign R22 f0/0 (to R24), R23 f3/0 (to R25 — note R25 is Blue; confirm interface/customer mapping against the reference and only place Yellow interfaces here) and R16 g2/0 (to R26). Yellow RT consistent across ASes.
-- [ ] **Task 1.5 — VRF BLUE. [2 points]** Create VRF BLUE on R1 (AS65100), assigning R1 f4/1 (to R32). Blue also appears on R25's connections in AS65200/65300 (R14, R21, R23) — create VRF BLUE on those PEs too and assign the correct R25-facing interfaces. Blue spans three ASes; keep the Blue RT identical everywhere.
+- [ ] **Task 1.5 — VRF BLUE. [2 points]** Create VRF BLUE on R31 (AS65100), assigning R31 g1/0 (to R32). Blue also appears on R25's connections in AS65200/65300 (R14, R21, R23) — create VRF BLUE on those PEs too and assign the correct R25-facing interfaces. Blue spans three ASes; keep the Blue RT identical everywhere.
 - [ ] **Task 1.6 — Verify VRFs. [0 points — verification]** `show vrf`, `show ip vrf interfaces`. Confirm each PE-CE interface is in the intended VRF and the global table no longer owns those interfaces.
 
 ---
@@ -29,11 +29,11 @@ Goal: Define per-customer VRFs on the PEs. Use a consistent, documented RD and R
 
 Goal: Bring up eBGP in each VRF between PE and CE. Watch for the AS_PATH loop problem on customers that reuse the same ASN at multiple sites — use `as-override` (or `allowas-in` on the CE) where the same customer ASN appears on both ends.
 
-- [ ] **Task 2.1 — Green eBGP (AS65100). [3 points]** eBGP in VRF GREEN: R1↔R9 (`192.168.1.0/24`), R1↔R10 (`192.168.2.0/24`), R2↔R10 (`192.168.4.0/24`), all CE side AS65910. Advertise R9/R10 loopbacks and the R9–R10 link (`192.168.100.0/24`).
+- [ ] **Task 2.1 — Green eBGP (AS65100). [3 points]** eBGP in VRF GREEN: R31↔R9 (`192.168.1.0/24`), R31↔R10 (`192.168.2.0/24`), R2↔R10 (`192.168.4.0/24`), all CE side AS65910. Advertise R9/R10 loopbacks and the R9–R10 link (`192.168.100.0/24`).
 - [ ] **Task 2.2 — Green eBGP (AS65200). [3 points]** eBGP in VRF GREEN: R16↔R18 (`192.168.7.0/24`), R18 in AS65910.
 - [ ] **Task 2.3 — Green as-override. [3 points]** Because R18 (AS65200 site) and R9/R10 (AS65100 sites) all use AS65910, routes crossing between Green sites will be dropped for AS_PATH loop. Apply `as-override` on the PEs (or `allowas-in` on CEs) so same-AS sites exchange routes. State which you chose and why. (Full cross-AS Green reachability still waits for WB09; within-AS this matters where two Green CEs attach in the same AS.)
 - [ ] **Task 2.4 — Yellow eBGP. [3 points]** eBGP in VRF YELLOW: R20↔R24 and R22↔R24 (`192.168.9.0/24`, `192.168.11.0/24`, CE AS65024); R16↔R26 (`192.168.8.0/24`, CE AS65024). R24 is dual-homed to R20 and R22 within AS65300 — note it for SoO in Section 5.
-- [ ] **Task 2.5 — Blue eBGP. [3 points]** eBGP in VRF BLUE: R1↔R32 (`192.168.3.0/24`, CE AS65025); R25 to R14 (`192.168.5.0/24`), R21 (`192.168.10.0/24`), R23 (`192.168.12.0/24`), all CE AS65025. Apply `as-override` as needed for the reused AS65025.
+- [ ] **Task 2.5 — Blue eBGP. [3 points]** eBGP in VRF BLUE: R31↔R32 (`192.168.3.0/24`, CE AS65025); R25 to R14 (`192.168.5.0/24`), R21 (`192.168.10.0/24`), R23 (`192.168.12.0/24`), all CE AS65025. Apply `as-override` as needed for the reused AS65025.
 - [ ] **Task 2.6 — Verify PE-CE. [0 points — verification]** On each PE: `show bgp vpnv4 unicast vrf <name> summary` shows CE sessions Established; CE prefixes appear in the VRF table (`show ip route vrf <name>`).
 
 > **Snapshot:** `WB05-01-vrf-pece-up`.
@@ -74,7 +74,7 @@ Goal: Validate CE-CE reachability within each AS and apply Site-of-Origin to the
 - [ ] **Task 5.1 — Green CE-CE (within AS65100). [0 points — verification]** From R9, reach R10's loopback and the opposite PE-CE subnet through the Green VPN. Confirm the data path uses the MPLS VPN (traceroute shows the PE loopbacks / label switching, not a direct IGP leak).
 - [ ] **Task 5.2 — Yellow CE-CE (within AS65300). [0 points — verification]** From R24, verify reachability to other Yellow prefixes that live within AS65300. (R26 is in AS65200 — defer that cross-AS leg to WB09.)
 - [ ] **Task 5.3 — Blue within-AS checks. [0 points — verification]** For each AS where Blue exists, verify the local Blue CE prefixes are present in the Blue VRF. Cross-AS Blue reachability is WB09.
-- [ ] **Task 5.4 — SoO on dual-homed CE. [5 points]** R10 is dual-homed (R1 g1/0 and R2 g1/0, both VRF GREEN, same CE AS65910). Apply a Site-of-Origin extended community on both PE-CE interfaces facing R10 so a route originated at the R10 site is not re-advertised back to the same site through the other PE. Verify the SoO is attached (`show bgp vpnv4 unicast vrf GREEN <prefix>` extended-community) and that no loop/suboptimal re-injection occurs.
+- [ ] **Task 5.4 — SoO on dual-homed CE. [5 points]** R9 is dual-homed (R31 f4/0 and R2 g1/0, both VRF GREEN, same CE AS65910). Apply a Site-of-Origin extended community on both PE-CE interfaces facing R10 so a route originated at the R10 site is not re-advertised back to the same site through the other PE. Verify the SoO is attached (`show bgp vpnv4 unicast vrf GREEN <prefix>` extended-community) and that no loop/suboptimal re-injection occurs.
 - [ ] **Task 5.5 — Negative test (no cross-AS leak). [0 points — verification]** Confirm that Green/Yellow/Blue CE prefixes do **not** reach sites in other ASes yet — proving the control plane is correctly AS-scoped before WB09 stitches it.
 
 > **Snapshot:** `WB05-04-complete`.
@@ -84,7 +84,7 @@ Goal: Validate CE-CE reachability within each AS and apply Site-of-Origin to the
 ## Completion Checklist
 
 - [ ] RD-per-SP / RT-per-customer scheme documented and applied consistently.
-- [ ] VRF GREEN on R1,R2 (65100) and R15,R16 (65200); YELLOW on R22,R23 (65300) and R16 (65200); BLUE on R1 (65100), R14,R21,R23 (R25-facing).
+- [ ] VRF GREEN on R31,R2 (65100) and R15,R16 (65200); YELLOW on R22,R23 (65300) and R16 (65200); BLUE on R31 (65100), R14,R21,R23 (R25-facing).
 - [ ] PE-CE eBGP up for Green, Yellow, Blue with `as-override`/`allowas-in` applied where ASNs are reused.
 - [ ] PE-CE OSPF (R15↔R17) with mutual redistribution, DN-bit and domain-id behavior demonstrated.
 - [ ] VPNv4 propagation via RRs verified; RT import/export correct; two-label stack confirmed via CEF.
@@ -134,16 +134,16 @@ Goal: Validate CE-CE reachability within each AS and apply Site-of-Origin to the
 |------|-----|-------|-------|
 | **Section 1: VRF + RD + RT** | **10** | **10** | ✅ PERFECT |
 | 1.1 RD/RT scheme | 2 | 2 | ✅ Per-AS RDs, consistent RTs across ASes |
-| 1.2 VRF GREEN (AS65100) | 2 | 2 | ✅ R1, R2 — correct interfaces |
+| 1.2 VRF GREEN (AS65100) | 2 | 2 | ✅ R31, R2 — correct interfaces |
 | 1.3 VRF GREEN (AS65200) | 2 | 2 | ✅ R15, R16 — RD initially wrong (65100:100 on R16), fixed |
 | 1.4 VRF YELLOW | 2 | 2 | ✅ R20, R22, R16 |
 | 1.5 VRF BLUE | 2 | 2 | ✅ R1, R14, R21, R23 — spans 3 ASes |
 | **Section 2: PE-CE eBGP** | **15** | **15** | ✅ PERFECT |
-| 2.1 Green eBGP (AS65100) | 3 | 3 | ✅ R1↔R9, R1↔R10, R2↔R10 all AS65910 |
+| 2.1 Green eBGP (AS65100) | 3 | 3 | ✅ R31↔R9, R31↔R10, R2↔R10 all AS65910 |
 | 2.2 Green eBGP (AS65200) | 3 | 3 | ✅ R16↔R18 |
-| 2.3 as-override | 3 | 3 | ✅ On R1, R2, R16 for same-AS Green CEs |
+| 2.3 as-override | 3 | 3 | ✅ On R31, R2, R16 for same-AS Green CEs |
 | 2.4 Yellow eBGP | 3 | 3 | ✅ R20↔R24, R22↔R24, R16↔R26 |
-| 2.5 Blue eBGP | 3 | 3 | ✅ R1↔R32, R14↔R25, R21↔R25, R23↔R25 |
+| 2.5 Blue eBGP | 3 | 3 | ✅ R31↔R32, R14↔R25, R21↔R25, R23↔R25 |
 | **Section 3: PE-CE OSPF** | **18** | **18** | ✅ PERFECT |
 | 3.1 OSPF PE-CE | 5 | 5 | ✅ OSPF 2 VRF GREEN, R15↔R17, adjacency FULL |
 | 3.2 Mutual redistribution | 3 | 3 | ✅ ospf→bgp and bgp→ospf both configured |

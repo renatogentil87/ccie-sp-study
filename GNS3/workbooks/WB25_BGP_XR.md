@@ -14,7 +14,7 @@
 > Take an **EVE-NG snapshot/export** at each checkpoint so you can roll back cleanly.
 
 > **Reference (all ASes):**
-> **AS 65100** (IS-IS L2): PE R1/R2, P R3/R4, ASBR R5/R6, RR R7/R8 — loopbacks 150.1.X.X
+> **AS 65100** (IS-IS L2): PE R31/R2, P R3/R4, ASBR R5/R6, RR R7/R8 — loopbacks 150.1.X.X
 > **AS 65200** (OSPF): P R11/R13, ASBR R12, PE R14/R15/R16, RR R19 — loopbacks 150.2.X.X
 > **AS 65300** (IS-IS L2): ASBR/PE R20/R21, PE R22/R23, RR R30 — loopbacks 150.3.X.X
 > eBGP ASBR boundaries and inter-AS links per `00_topology_reference.md`.

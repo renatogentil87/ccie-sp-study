@@ -39,7 +39,7 @@
 - [ ] **Task 1.1 [1 point]** — On R5 create VRF GREEN (matching RD/RT policy from WB05). On R11 create VRF GREEN (if not already present as a P router, R11 now acts as an Option A ASBR for this link).
 - [ ] **Task 1.2 [2 points]** — On the R5↔R11 physical link, create a **per-VRF sub-interface** with dot1q encapsulation placed into VRF GREEN on both sides. Remove the existing global IP from the physical interface. Choose a VLAN tag and new /30 or /24 subnet for the VRF sub-interface.
 - [ ] **Task 1.3 [1 point]** — Configure a **per-VRF eBGP session** between R5 and R11 inside VRF GREEN over the sub-interface. Exchange Green customer routes across the boundary. No VPNv4, no label exchange — plain IPv4 inside the VRF.
-- [ ] **Task 1.4 [1 point]** — Ensure Green routes learned from the far AS via the per-VRF eBGP are redistributed into each side's VPNv4 table so they reach the PEs (R1/R2 in AS65100, R15/R16 in AS65200) via the RRs.
+- [ ] **Task 1.4 [1 point]** — Ensure Green routes learned from the far AS via the per-VRF eBGP are redistributed into each side's VPNv4 table so they reach the PEs (R31/R2 in AS65100, R15/R16 in AS65200) via the RRs.
 - [ ] **Task 1.5 [0 points — verification]** — Verify end-to-end: CE9 (AS65100) ↔ CE18 (AS65200), CE10 ↔ CE17. Confirm no MPLS label on the R5↔R11 ASBR link (IP forwarding per-VRF only).
 
 **Verify / Snapshot**
@@ -101,7 +101,7 @@ R12 ↔ R21 (65200↔65300): Option B — already configured in Section 2 (Yello
 - [ ] `show bgp vpnv4 unicast all summary` on ALL ASBRs — all VPNv4 sessions UP
 - [ ] `show bgp vpnv4 unicast vrf GREEN` on PEs in both ASes — far-AS prefixes imported
 - [ ] `show bgp vpnv4 unicast vrf YELLOW` on R16 and R22 — cross-AS prefixes present
-- [ ] `show bgp vpnv4 unicast vrf BLUE` on R1, R14, R21, R23 — prefixes from all 3 ASes
+- [ ] `show bgp vpnv4 unicast vrf BLUE` on R31, R14, R21, R23 — prefixes from all 3 ASes
 - [ ] End-to-end ping/traceroute for each customer across AS boundaries
 - [ ] Confirm label stacks on traceroute (VPN label + LDP transport within each AS, IP at Option A boundary)
 - [ ] **Snapshot:** `WB09-03-full-connectivity`

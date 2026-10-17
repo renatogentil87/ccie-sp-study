@@ -13,7 +13,7 @@ This document provides complete IOS classic configuration, verification commands
 
 **Design notes:** Level-2-only everywhere avoids L1/L2 boundary complexity across a flat single-area design per AS. Reference bandwidth differential is achieved with `isis metric` set explicitly per interface (10 for Gi, 100 for Fa) rather than relying on auto-cost, since classic IS-IS wide metrics are set directly on the interface, not derived from interface bandwidth automatically the way OSPF's `auto-cost` works.
 
-#### R1 (PE, AS65100)
+#### R31 (PE, AS65100)
 
 ```
 hostname R1
@@ -23,7 +23,7 @@ key chain ISIS-KEY
   key-string CCIESPL2
 !
 interface Loopback0
- ip address 150.1.1.1 255.255.255.255
+ ip address 150.1.31.31 255.255.255.255
  ip router isis
  isis passive-interface
 !
@@ -992,13 +992,13 @@ Expected: `show mpls ldp neighbor` shows every expected peer in state `Oper` wit
 
 **Design notes:** RR clients peer with both RRs in AS65100 for redundancy; AS65200/65300 use a single RR each per the topology. All iBGP sessions use loopback peering + `next-hop-self` on the RRs for VPNv4 (classic RR behavior preserves the originating PE's next-hop for VPNv4 by default *unless* `next-hop-self` is applied — for route-reflectors the common/correct practice is to NOT change the VPNv4 next-hop, since VPNv4 next-hop must remain the originating PE's loopback for label resolution; `next-hop-self` is applied only where explicitly needed for IPv4-unicast core infrastructure routes, not VPNv4).
 
-#### R1 (PE, AS65100) — iBGP to R7/R8
+#### R31 (PE, AS65100) — iBGP to R7/R8
 
 ```
 hostname R1
 !
 router bgp 65100
- bgp router-id 150.1.1.1
+ bgp router-id 150.1.31.31
  bgp log-neighbor-changes
  neighbor 150.1.7.7 remote-as 65100
  neighbor 150.1.7.7 update-source Loopback0
@@ -1028,9 +1028,9 @@ hostname R7
 router bgp 65100
  bgp router-id 150.1.7.7
  bgp log-neighbor-changes
- neighbor 150.1.1.1 remote-as 65100
- neighbor 150.1.1.1 update-source Loopback0
- neighbor 150.1.1.1 password CCIESPIBGP100
+ neighbor 150.1.31.31 remote-as 65100
+ neighbor 150.1.31.31 update-source Loopback0
+ neighbor 150.1.31.31 password CCIESPIBGP100
  neighbor 150.1.2.2 remote-as 65100
  neighbor 150.1.2.2 update-source Loopback0
  neighbor 150.1.2.2 password CCIESPIBGP100
@@ -1045,8 +1045,8 @@ router bgp 65100
  neighbor 150.1.8.8 password CCIESPIBGP100
  !
  address-family ipv4
-  neighbor 150.1.1.1 activate
-  neighbor 150.1.1.1 route-reflector-client
+  neighbor 150.1.31.31 activate
+  neighbor 150.1.31.31 route-reflector-client
   neighbor 150.1.2.2 activate
   neighbor 150.1.2.2 route-reflector-client
   neighbor 150.1.5.5 activate
@@ -1057,9 +1057,9 @@ router bgp 65100
  exit-address-family
  !
  address-family vpnv4
-  neighbor 150.1.1.1 activate
-  neighbor 150.1.1.1 route-reflector-client
-  neighbor 150.1.1.1 send-community both
+  neighbor 150.1.31.31 activate
+  neighbor 150.1.31.31 route-reflector-client
+  neighbor 150.1.31.31 send-community both
   neighbor 150.1.2.2 activate
   neighbor 150.1.2.2 route-reflector-client
   neighbor 150.1.2.2 send-community both
@@ -1387,7 +1387,7 @@ router bgp 65100
   redistribute isis level-2 route-map PE-LOOPBACKS-ONLY
  exit-address-family
 !
-ip prefix-list PE-LOOPBACKS seq 5 permit 150.1.1.1/32
+ip prefix-list PE-LOOPBACKS seq 5 permit 150.1.31.31/32
 ip prefix-list PE-LOOPBACKS seq 10 permit 150.1.2.2/32
 !
 route-map PE-LOOPBACKS-ONLY permit 10
@@ -1472,7 +1472,7 @@ router bgp 65100
  exit-address-family
 ```
 
-> `redistribute connected` here only injects the PE-CE link's own connected subnet (192.168.1.0/24, 192.168.2.0/24) into the VRF's BGP table — it does **not** redistribute any other connected interface because no other interface on R1 is a member of VRF GREEN. This satisfies Q3.3's "no blanket redistribution" requirement by construction: the only connected routes that exist *in this VRF* are the PE-CE links themselves.
+> `redistribute connected` here only injects the PE-CE link's own connected subnet (192.168.1.0/24, 192.168.2.0/24) into the VRF's BGP table — it does **not** redistribute any other connected interface because no other interface on R31 is a member of VRF GREEN. This satisfies Q3.3's "no blanket redistribution" requirement by construction: the only connected routes that exist *in this VRF* are the PE-CE links themselves.
 
 #### VRF GREEN — R2 (facing R10, 2nd PE for R10's dual-homing)
 
@@ -1497,7 +1497,7 @@ router bgp 65100
  exit-address-family
 ```
 
-> **AS-override analysis (per task's own notes requirement):** R10 is a single CE router with two separate links into AS65100's GREEN VRF — one to R1 (192.168.2.0/24) and one to R2 (192.168.4.0/24) — both PE-CE sessions use customer AS 65910 on both sides. Since R10 is *one* router participating in *two separate eBGP sessions* (not a transit path where R10 would see its own AS further down a path it must re-accept), AS-override is **not required** on R1 or R2 for this specific R10 dual-homing scenario. AS-override only matters when a CE must accept a route whose AS-PATH already contains the CE's own AS number (e.g., a multi-site customer backdoor where site A's route transits the SP and comes back to site B in the same customer AS, and site B's router would otherwise reject it as a loop). Here, R10 originates its own routes directly on both sessions — there's no transit path where 65910 would appear in an AS-PATH being presented back to a 65910-speaking CE. **R9**, however, is single-homed only to R1 and has no second path, so it is not relevant to this analysis either. Conclusion: **AS-override is not needed anywhere in VRF GREEN's AS65100 footprint** given this topology; it is called out here per the task's instruction to document the reasoning, not applied.
+> **AS-override analysis (per task's own notes requirement):** R10 is a single CE router with two separate links into AS65100's GREEN VRF — one to R1 (192.168.2.0/24) and one to R2 (192.168.4.0/24) — both PE-CE sessions use customer AS 65910 on both sides. Since R10 is *one* router participating in *two separate eBGP sessions* (not a transit path where R10 would see its own AS further down a path it must re-accept), AS-override is **not required** on R31 or R2 for this specific R10 dual-homing scenario. AS-override only matters when a CE must accept a route whose AS-PATH already contains the CE's own AS number (e.g., a multi-site customer backdoor where site A's route transits the SP and comes back to site B in the same customer AS, and site B's router would otherwise reject it as a loop). Here, R10 originates its own routes directly on both sessions — there's no transit path where 65910 would appear in an AS-PATH being presented back to a 65910-speaking CE. **R9**, however, is single-homed only to R1 and has no second path, so it is not relevant to this analysis either. Conclusion: **AS-override is not needed anywhere in VRF GREEN's AS65100 footprint** given this topology; it is called out here per the task's instruction to document the reasoning, not applied.
 
 #### VRF GREEN — R16 (facing R18, eBGP)
 
@@ -1745,7 +1745,7 @@ ping vrf GREEN 150.9.9.9
 ping vrf BLUE 150.25.25.25
 ```
 
-Expected: `show ip vrf` on each PE lists the VRF(s) with the correct RD and interface(s). `show ip bgp vpnv4 vrf GREEN` on R1 should show R9's and R10's loopbacks/connected networks learned via eBGP, plus R17's and R18's prefixes learned via VPNv4 from R15/R16 across the AS boundary. `show ip route vrf BLUE` on R14 should show R32 (via AS65100, VPNv4) and R25's directly-connected and any further routes it advertises, with no routes leaking into the global table (`show ip route` on R14 — i.e. the non-VRF table — must NOT show 192.168.5.0/24, 192.168.3.0/24, etc.). Pinging CE loopbacks across VRFs confirms end-to-end reachability within each VPN only.
+Expected: `show ip vrf` on each PE lists the VRF(s) with the correct RD and interface(s). `show ip bgp vpnv4 vrf GREEN` on R31 should show R9's and R10's loopbacks/connected networks learned via eBGP, plus R17's and R18's prefixes learned via VPNv4 from R15/R16 across the AS boundary. `show ip route vrf BLUE` on R14 should show R32 (via AS65100, VPNv4) and R25's directly-connected and any further routes it advertises, with no routes leaking into the global table (`show ip route` on R14 — i.e. the non-VRF table — must NOT show 192.168.5.0/24, 192.168.3.0/24, etc.). Pinging CE loopbacks across VRFs confirms end-to-end reachability within each VPN only.
 
 **Rationale:** Separate per-AS RDs for the same VPN are intentional and conventional (RD uniqueness is a BGP-table-disambiguation construct, not a VPN-membership construct — RT is what actually defines VPN membership) — this avoids any single point of RD administration being required across independently-operated ASes. `redistribute connected` scoped to a VRF only touches that VRF's own connected interfaces, so it cannot leak between VPNs. SoO on BLUE (applied now, directed by the task) prevents the exact multi-PE route-reflection loop risk that Q3.2 later demonstrates and fixes for YELLOW — BLUE's version is pre-empted here because the task explicitly says to.
 
@@ -1992,7 +1992,7 @@ show ip bgp vpnv4 vrf GREEN 150.32.32.32
 show mpls forwarding-table
 ```
 
-Expected: Option A — R5 and R11 each show a locally-learned (not VPNv4-sourced) GREEN route from the other, with a brand-new eBGP-assigned next-hop (the `.910` sub-interface IP), proving no VPNv4 attributes crossed. Option B — `show ip bgp vpnv4 vrf BLUE` on R21 shows the Blue route's BGP next-hop as R12's own loopback (150.2.12.12), not R14's, confirming next-hop rewrite. Option C — `show ip bgp vpnv4 vrf GREEN 150.32.32.32` on R30/R20/R21 shows the next-hop still as R1's loopback (150.1.1.1) unchanged, and `show mpls forwarding-table` on R6/R20 shows zero VPNv4-sourced label entries — only BGP-LU/IGP label entries — proving the ASBRs carry no VPNv4 state for this path.
+Expected: Option A — R5 and R11 each show a locally-learned (not VPNv4-sourced) GREEN route from the other, with a brand-new eBGP-assigned next-hop (the `.910` sub-interface IP), proving no VPNv4 attributes crossed. Option B — `show ip bgp vpnv4 vrf BLUE` on R21 shows the Blue route's BGP next-hop as R12's own loopback (150.2.12.12), not R14's, confirming next-hop rewrite. Option C — `show ip bgp vpnv4 vrf GREEN 150.32.32.32` on R30/R20/R21 shows the next-hop still as R1's loopback (150.1.31.31) unchanged, and `show mpls forwarding-table` on R6/R20 shows zero VPNv4-sourced label entries — only BGP-LU/IGP label entries — proving the ASBRs carry no VPNv4 state for this path.
 
 **Rationale:** The three Inter-AS options differ precisely in how much VPNv4 state and label-stack depth the ASBRs themselves must carry — Option A isolates each side completely (simplest/least scalable, each ASBR is a VRF edge), Option B exchanges VPNv4 directly but hides the original PE identity behind the ASBR's own next-hop (moderate scalability, ASBR becomes a per-prefix hop), and Option C pushes VPNv4 state all the way to the RRs/PEs so the ASBRs stay label-switching-only infrastructure (most scalable, matches large multi-AS SP designs). Demonstrating all three on different ASBR pairs, as directed, lets each be verified independently without interaction.
 
@@ -2287,7 +2287,7 @@ router bgp 65300
  exit-address-family
 ```
 
-> Already present in each VRF's eBGP neighbor stanza shown in Q2.1's configs above (`maximum-prefix 50` lines) — restated here as a consolidated per-session checklist against the task's explicit list: R1↔R9, R1↔R10, R1↔R32, R2↔R10, R14↔R25, R16↔R18, R16↔R26, R20↔R24, R21↔R25, R22↔R24, R23↔R25. All eleven sessions are covered.
+> Already present in each VRF's eBGP neighbor stanza shown in Q2.1's configs above (`maximum-prefix 50` lines) — restated here as a consolidated per-session checklist against the task's explicit list: R31↔R9, R31↔R10, R31↔R32, R2↔R10, R14↔R25, R16↔R18, R16↔R26, R20↔R24, R21↔R25, R22↔R24, R23↔R25. All eleven sessions are covered.
 
 **Verification:**
 
@@ -2386,7 +2386,7 @@ interface GigabitEthernet1/0
  mpls traffic-eng tunnels
 ```
 
-> Apply `mpls traffic-eng tunnels` globally and under every AS65100 core-facing interface, plus `mpls traffic-eng level-2` + `mpls traffic-eng router-id Loopback0` under `router isis` identically on R1, R2, R3, R4, R5, R6, R7, R8 — this floods TE link-state (available bandwidth, affinity, etc.) into IS-IS so CSPF has topology data to compute explicit/constrained paths.
+> Apply `mpls traffic-eng tunnels` globally and under every AS65100 core-facing interface, plus `mpls traffic-eng level-2` + `mpls traffic-eng router-id Loopback0` under `router isis` identically on R31, R2, R3, R4, R5, R6, R7, R8 — this floods TE link-state (available bandwidth, affinity, etc.) into IS-IS so CSPF has topology data to compute explicit/constrained paths.
 
 #### Explicit path + Tunnel1 — R1
 
@@ -2408,7 +2408,7 @@ interface Tunnel1
  tunnel mpls traffic-eng fast-reroute
 ```
 
-> `next-address` hops in the explicit path are the strict, in-order next-hops R1→R3→R5→R6, deliberately excluding R2/R4 so the LSP never takes the R1→R2→R4→R6 alternate. `bandwidth 10000` reserves 10 Mbps (units are Kbps in this command, so `10000` = 10 Mbps) along the path. `autoroute announce` causes IGP-shortest-path traffic from R1 toward R6-reachable destinations to prefer this tunnel once up. `fast-reroute` on the tunnel signals FRR desired/required along the LSP's path, needed for R3's midpoint backup tunnel to actually protect it.
+> `next-address` hops in the explicit path are the strict, in-order next-hops R31→R3→R5→R6, deliberately excluding R2/R4 so the LSP never takes the R31→R2→R4→R6 alternate. `bandwidth 10000` reserves 10 Mbps (units are Kbps in this command, so `10000` = 10 Mbps) along the path. `autoroute announce` causes IGP-shortest-path traffic from R1 toward R6-reachable destinations to prefer this tunnel once up. `fast-reroute` on the tunnel signals FRR desired/required along the LSP's path, needed for R3's midpoint backup tunnel to actually protect it.
 
 #### FRR backup tunnel at R3, protecting the R3→R5 link
 
@@ -2442,7 +2442,7 @@ show mpls traffic-eng tunnels backup
 show ip route 150.1.6.6
 ```
 
-Expected: `show mpls traffic-eng tunnels tunnel1` on R1 shows `Tunnel1` state `up/up`, with the signaled path listing R1→R3→R5→R6 explicitly and bandwidth 10000 reserved. `show mpls traffic-eng fast-reroute database` on R3 shows Tunnel1 listed with a `Backup Tunnel` reference to Tunnel100 and protection state `Ready` (not merely configured) — the task explicitly warns that "configured but not providing protection" does not satisfy the requirement, so `Ready`/`Protected` status in this output (not just the backup tunnel existing in `show mpls traffic-eng tunnels backup`) is the actual pass criterion. `show ip route 150.1.6.6` on R1 shows the route resolving via Tunnel1 once up (autoroute announce), rather than via the native IGP SPF next-hop.
+Expected: `show mpls traffic-eng tunnels tunnel1` on R31 shows `Tunnel1` state `up/up`, with the signaled path listing R31→R3→R5→R6 explicitly and bandwidth 10000 reserved. `show mpls traffic-eng fast-reroute database` on R3 shows Tunnel1 listed with a `Backup Tunnel` reference to Tunnel100 and protection state `Ready` (not merely configured) — the task explicitly warns that "configured but not providing protection" does not satisfy the requirement, so `Ready`/`Protected` status in this output (not just the backup tunnel existing in `show mpls traffic-eng tunnels backup`) is the actual pass criterion. `show ip route 150.1.6.6` on R31 shows the route resolving via Tunnel1 once up (autoroute announce), rather than via the native IGP SPF next-hop.
 
 **Rationale:** An explicit strict-hop path guarantees the LSP takes exactly the intended route regardless of any IGP metric changes, satisfying the deliberate-avoidance-of-the-R2/R4-path requirement unambiguously. Bandwidth reservation and `autoroute announce` make the tunnel actually carry traffic rather than existing only as an idle signaled LSP. Link (not node) protection at R3 specifically targets the stated single-point-of-failure link, and verifying `Ready`/active backup state (not just configuration presence) is what distinguishes a working FRR deployment from a merely-configured one.
 

@@ -14,7 +14,7 @@
 > Take an **EVE-NG snapshot/export** at each checkpoint so you can roll back cleanly.
 
 > **Reference:**
-> P routers **R3** (150.1.3.3) / **R4** (150.1.4.4, AS65100), PEs **R1** (150.1.1.1) / **R14** (150.2.14.14) as monitored/measurement endpoints.
+> P routers **R3** (150.1.3.3) / **R4** (150.1.4.4, AS65100), PEs **R1** (150.1.31.31) / **R14** (150.2.14.14) as monitored/measurement endpoints.
 > Simulate a flow collector / TWAMP reflector reachable from the monitored nodes. SR-TE policies from WB18 reused for SR PM.
 > Links per `00_topology_reference.md`.
 
@@ -93,7 +93,7 @@ Export flow records from R3/R4 to a collector.
 
 ## Section 5 — Y.1731 Performance Monitoring [4 points]
 
-Ethernet CFM + SLA between R14 and R16 (or R1↔R14 L2 service).
+Ethernet CFM + SLA between R14 and R16 (or R31↔R14 L2 service).
 
 - [ ] **Task 5.1 [1 point]** — Configure **Ethernet CFM**: a **Maintenance Domain**, **Maintenance Association (MA)**, and **MEP** (down/up) on the service endpoints; add a **MIP** on a transit node.
 - [ ] **Task 5.2 [1 point]** — Verify CFM continuity (**CCM**) between MEPs (`show ethernet cfm peer meps`), including correct domain level and MA.

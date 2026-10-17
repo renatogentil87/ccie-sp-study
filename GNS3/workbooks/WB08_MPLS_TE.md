@@ -1,7 +1,7 @@
 # WB08 — MPLS Traffic Engineering
 
 **Platform:** Cisco 7200 (C7200-ADVENTERPRISEK9-M), IOS 15.2(4)M11
-**Scope:** MPLS-TE within AS 65100 (IS-IS L2 core, R1-R8)
+**Scope:** MPLS-TE within AS 65100 (IS-IS L2 core, R31, R2-R8)
 **Level:** CCIE SP
 **Prerequisite:** WB00-WB07 complete (IGP, LDP, L3VPN, inter-AS baseline all UP)
 
@@ -22,10 +22,10 @@
 
 ## Section 1 — Enable MPLS-TE + RSVP + IS-IS TE Extensions [2 points]
 
-Core: R1, R2, R3, R4, R5, R6, R7, R8.
+Core: R31, R2, R3, R4, R5, R6, R7, R8.
 
-- [ ] **Task 1.1 [1 point]** — Enable the global MPLS-TE capability on every core router (R1-R8).
-- [ ] **Task 1.2 [1 point]** — Enable TE on every core-facing interface (R1-R8), per the Full Link Map (AS 65100 Core). Do **not** enable TE on PE-CE or inter-AS interfaces.
+- [ ] **Task 1.1 [1 point]** — Enable the global MPLS-TE capability on every core router (R31, R2-R8).
+- [ ] **Task 1.2 [1 point]** — Enable TE on every core-facing interface (R31, R2-R8), per the Full Link Map (AS 65100 Core). Do **not** enable TE on PE-CE or inter-AS interfaces.
 - [ ] **Task 1.3 [0 points — included above]** — Enable RSVP on each core interface and reserve an RSVP bandwidth pool on each. Choose a per-interface reservable value appropriate to the link (document your choice).
 - [ ] **Task 1.4 [0 points — included above]** — Add IS-IS TE extensions: advertise TE topology at **level-2** and set the MPLS-TE router-id to Loopback0 on each router.
 - [ ] **Task 1.5 [0 points — verification]** — Confirm the TE topology database is populated.
@@ -41,9 +41,9 @@ Core: R1, R2, R3, R4, R5, R6, R7, R8.
 
 ## Section 2 — Basic TE Tunnel with Explicit Path (non-shortest) [3 points]
 
-Headend **R1**, tailend **R5**. Shortest IGP path is R1→R3→R5. You will force a **non-shortest** explicit path.
+Headend **R1**, tailend **R5**. Shortest IGP path is R31→R3→R5. You will force a **non-shortest** explicit path.
 
-- [ ] **Task 2.1 [1 point]** — Build an explicit path object listing the hops R1 → R3 → R5. (Confirm from topology this is actually valid; if R1→R3→R5 *is* the shortest, instead select a deliberately longer path such as R1→R3→R4→R6→R5 and note it — the point is to prove explicit routing overrides CSPF's shortest choice.)
+- [ ] **Task 2.1 [1 point]** — Build an explicit path object listing the hops R1 → R3 → R5. (Confirm from topology this is actually valid; if R31→R3→R5 *is* the shortest, instead select a deliberately longer path such as R31→R3→R4→R6→R5 and note it — the point is to prove explicit routing overrides CSPF's shortest choice.)
 - [ ] **Task 2.2 [1 point]** — Create `Tunnel0` on R1: destination = R5 Loopback0 (150.1.5.5), path-option 1 = explicit (your path), path-option 2 = dynamic (fallback).
 - [ ] **Task 2.3 [0 points — verification]** — Bring the tunnel UP and confirm it signalled over the explicit path, not the IGP shortest path.
 - [ ] **Task 2.4 [1 point]** — Enable **autoroute announce** on Tunnel0 so R1's routing table uses the tunnel to reach R5 and prefixes behind R5.
@@ -120,7 +120,7 @@ Protect Tunnel0 along its path. Target: traffic restoration **< 50 ms** on failu
 
 ## Section 6 — TE + VPN Integration [5 points]
 
-- [ ] **Task 6.1 [2 points]** — Confirm L3VPN traffic (an existing customer VPN from WB prerequisites that transits R1→R5) rides Tunnel0 via autoroute announce. Verify the VPN label stacks on top of the TE/tunnel label.
+- [ ] **Task 6.1 [2 points]** — Confirm L3VPN traffic (an existing customer VPN from WB prerequisites that transits R31→R5) rides Tunnel0 via autoroute announce. Verify the VPN label stacks on top of the TE/tunnel label.
 - [ ] **Task 6.2 [3 points]** — Configure **forwarding-adjacency** on Tunnel0 so the tunnel is advertised into IS-IS as a link, allowing other routers (not just the headend) to use it in SPF. Set the forwarding-adjacency holdtime/metric.
 - [ ] **Task 6.3 [0 points — verification]** — Confirm a *non-headend* router now installs routes over the tunnel because it appears as an IS-IS link.
 
@@ -179,7 +179,7 @@ Below 12:      Review the topic theory before retrying
 
 ## Completion Criteria
 
-- [ ] MPLS-TE + RSVP + IS-IS TE extensions operational across R1-R8
+- [ ] MPLS-TE + RSVP + IS-IS TE extensions operational across R31, R2-R8
 - [ ] Explicit-path tunnel UP and carrying traffic via autoroute
 - [ ] FRR link + node protection proven with failure tests
 - [ ] Bandwidth, priority, preemption, auto-bandwidth demonstrated
@@ -200,7 +200,7 @@ Below 12:      Review the topic theory before retrying
 | 1.1 Global TE + interfaces | 1 | 1 | ✅ From memory — all R1-R6 core interfaces |
 | 1.2 RSVP + IS-IS TE extensions | 1 | 0 | ❌ Needed help: forgot `mpls traffic-eng level-2` + `router-id Lo0` under IS-IS |
 | **Section 2: Basic TE Tunnel** | **3** | **3** | ✅ PERFECT |
-| 2.1 Explicit path | 1 | 1 | ✅ R1→R3→R4→R6→R5 non-shortest path |
+| 2.1 Explicit path | 1 | 1 | ✅ R31→R3→R4→R6→R5 non-shortest path |
 | 2.2 Tunnel0 creation | 1 | 1 | ✅ Tunnel mode, destination, path-options, dynamic fallback |
 | 2.4 Autoroute announce | 1 | 1 | ✅ Traffic resolves via Tunnel0 |
 | **Section 3: FRR** | **5** | **5** | ✅ (config correct, verification excluded — Dynamips limitation) |

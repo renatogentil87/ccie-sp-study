@@ -7,14 +7,14 @@
 
 > **Platform note:** This workbook uses **IOS-XR syntax** and must be run on an EVE-NG lab
 > (IOS-XRv9000 or equivalent). SR-MPLS is **not** supported on the GNS3 7200/IOS 15.2 lab.
-> Map the AS 65100 roles (R1/R2 PE, R3/R4 P, R5/R6 ASBR, R7/R8 RR) onto XR nodes.
+> Map the AS 65100 roles (R31/R2 PE, R3/R4 P, R5/R6 ASBR, R7/R8 RR) onto XR nodes.
 >
 > **Format:** Tasks only. No configurations provided — you derive the config.
 > Work **progressively**: finish and verify each section before moving on.
 > Take an **EVE-NG snapshot/export** at each checkpoint so you can roll back cleanly.
 
 > **AS 65100 Loopback0 reference (SR node planning):**
-> R1 150.1.1.1 · R2 150.1.2.2 · R3 150.1.3.3 · R4 150.1.4.4 · R5 150.1.5.5 · R6 150.1.6.6 · R7 150.1.7.7 · R8 150.1.8.8
+> R1 150.1.31.31 · R2 150.1.2.2 · R3 150.1.3.3 · R4 150.1.4.4 · R5 150.1.5.5 · R6 150.1.6.6 · R7 150.1.7.7 · R8 150.1.8.8
 > IS-IS area 49.0001, L2-only. Core links per `00_topology_reference.md` (AS 65100 Core).
 
 ---
@@ -47,7 +47,7 @@ Core: R1-R8. Default SRGB **16000-23999**, SRLB **25000-26000** (set explicitly)
 
 ## Section 2 — Prefix-SID / Node-SID Allocation [4 points]
 
-Allocate an absolute prefix-SID per node (index = router number for clarity: R1→1 … R8→8, i.e. labels 16001-16008).
+Allocate an absolute prefix-SID per node (index = router number for clarity: R31→1 … R8→8, i.e. labels 16001-16008).
 
 - [ ] **Task 2.1 [2 points]** — Under IS-IS, on each node's Loopback0 interface, assign a **prefix-SID index** (`segment-routing prefix-sid index <N>`). Use index N = router number (R1=1 … R8=8). Mark it as a **node-SID** (n-flag set — this is the default for a /32 loopback).
 - [ ] **Task 2.2 [1 point]** — Confirm each node computes the global label (SRGB base 16000 + index) and installs it in CEF/LFIB.
@@ -63,18 +63,18 @@ Allocate an absolute prefix-SID per node (index = router number for clarity: R1�
 
 ---
 
-## Section 3 — Anycast-SID on R1 + R2 [4 points]
+## Section 3 — Anycast-SID on R31 + R2 [4 points]
 
-Deploy a shared **anycast** service address on the R1/R2 PE pair so traffic can land on whichever is closer.
+Deploy a shared **anycast** service address on the R31/R2 PE pair so traffic can land on whichever is closer.
 
-- [ ] **Task 3.1 [1 point]** — On both R1 and R2, create a new **Loopback99** with the SAME anycast IP (e.g. 150.1.99.99/32).
+- [ ] **Task 3.1 [1 point]** — On both R31 and R2, create a new **Loopback99** with the SAME anycast IP (e.g. 150.1.99.99/32).
 - [ ] **Task 3.2 [2 points]** — Advertise Loopback99 into IS-IS on both nodes with the SAME prefix-SID **index/absolute = 99** (`segment-routing prefix-sid absolute 16099` or index 99), and set the **n-flag-clear** flag (anycast = NOT a node-SID, so clear the node flag).
-- [ ] **Task 3.3 [0 points — verification]** — From a remote node (R8), confirm two equal-cost paths resolve the anycast SID (ECMP to both R1 and R2), and that failing one PE keeps the SID reachable via the other.
+- [ ] **Task 3.3 [0 points — verification]** — From a remote node (R8), confirm two equal-cost paths resolve the anycast SID (ECMP to both R31 and R2), and that failing one PE keeps the SID reachable via the other.
 - [ ] **Task 3.4 [1 point]** — Explain in the attempt notes WHY the n-flag must be cleared for anycast (PHP / node-SID semantics vs. shared prefix).
 
 **Verify / Snapshot**
 - [ ] `show isis segment-routing prefix-sid | include 16099|99` — both R1 & R2 advertise, n-flag clear
-- [ ] `show cef 150.1.99.99/32 detail` — ECMP toward R1 and R2
+- [ ] `show cef 150.1.99.99/32 detail` — ECMP toward R31 and R2
 - [ ] After shutting R1's Loopback99/node: SID still reachable via R2
 - [ ] **Snapshot:** `WB16-03-anycast`
 
@@ -116,10 +116,10 @@ Topology-Independent Loop-Free Alternate: sub-50ms protection using SR repair pa
 
 Interwork a legacy LDP island with SR using a **Segment Routing Mapping Server (SRMS)**.
 
-- [ ] **Task 6.1 [1 point]** — Pick two nodes (e.g. R3, R4) to retain **LDP** (simulate legacy island). Keep R1/R2/R5-R8 SR-enabled.
+- [ ] **Task 6.1 [1 point]** — Pick two nodes (e.g. R3, R4) to retain **LDP** (simulate legacy island). Keep R31/R2/R5-R8 SR-enabled.
 - [ ] **Task 6.2 [2 points]** — Configure an **SRMS** on R7 (RR): `segment-routing mapping-server prefix-sid-map address-family ipv4` mapping the LDP-only loopbacks (e.g. 150.1.3.3/32 → index 3, 150.1.4.4/32 → index 4). Advertise the mappings into IS-IS (`segment-routing prefix-sid-map advertise-local`).
 - [ ] **Task 6.3 [1 point]** — Enable **SR/LDP interworking** so SR LSPs stitch to LDP LSPs across the island (`segment-routing mpls` + confirm SR-labelled-to-LDP imposition / stitching on the border nodes).
-- [ ] **Task 6.4 [1 point]** — Confirm end-to-end label switching R1→R4 traverses an SR segment then an LDP segment (label stitching), proving coexistence.
+- [ ] **Task 6.4 [1 point]** — Confirm end-to-end label switching R31→R4 traverses an SR segment then an LDP segment (label stitching), proving coexistence.
 - [ ] **Task 6.5 [0 points — verification]** — Confirm the mapping server entries are received fleet-wide.
 
 **Verify / Snapshot**
@@ -199,7 +199,7 @@ Below 14:      Review the topic theory before retrying
 
 - [ ] SR-MPLS enabled with explicit SRGB/SRLB across R1-R8
 - [ ] Prefix-SIDs + adjacency-SIDs allocated and label-switching end-to-end
-- [ ] Anycast-SID on R1/R2 (n-flag-clear) with ECMP + failover
+- [ ] Anycast-SID on R31/R2 (n-flag-clear) with ECMP + failover
 - [ ] TI-LFA protecting all core interfaces
 - [ ] Microloop avoidance enabled and reasoned
 - [ ] LDP↔SR interworking via mapping server proven with stitched LSP

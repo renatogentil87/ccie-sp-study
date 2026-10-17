@@ -4,7 +4,7 @@
 **Level:** CCIE SP
 **Prerequisite:** WB00–WB04 complete (IGP + LDP in all ASes); WB06 complete (AToM/VPWS fundamentals, targeted-LDP).
 **Format:** Tasks only. No configurations provided.
-**Reference:** See `00_topology_reference.md`. Red VLAN 100 CEs: R27 on R16 f3/0, R28 on R14 f4/0, R29 on R1 g2/0.
+**Reference:** See `00_topology_reference.md`. Red VLAN 100 CEs: R27 on R16 f3/0, R28 on R14 f4/0, R29 on R31 f0/0.
 
 > **Snapshot before you start:** `WB07-00-start`.
 
@@ -25,16 +25,16 @@ Goal: Build an LDP-signaled (martini) full-mesh VPLS instance across AS65200 so 
 
 ---
 
-## Section 2 — Extend to Cross-AS (R29 / R1 in AS65100) [15 points]
+## Section 2 — Extend to Cross-AS (R29 / R31 in AS65100) [15 points]
 
-Goal: Give R29 (on R1, AS65100) Layer-2 reachability into the Red VLAN 100 domain with R27/R28 in AS65200. Evaluate options, then implement the one the IOS supports.
+Goal: Give R29 (on R31, AS65100) Layer-2 reachability into the Red VLAN 100 domain with R27/R28 in AS65200. Evaluate options, then implement the one the IOS supports.
 
 - [ ] **Task 2.1 — Option assessment. [5 points]** Document the candidate approaches and their IOS 15.2(4)M11 feasibility:
   - (a) **Native inter-AS VPLS** (VFI peers across the AS boundary) — requires inter-AS LDP/BGP-AD support; likely unsupported on 7200.
   - (b) **Multi-segment pseudowire (MS-PW)** stitched at the ASBR — verify switching-PW support.
-  - (c) **AToM cross-AS fallback:** a point-to-point PW R1↔R14 (stitched/extended across the inter-AS link via the ASBRs), with R14 bridging that PW into the AS65200 VPLS VFI. This is the recommended fallback if (a)/(b) are unsupported.
+  - (c) **AToM cross-AS fallback:** a point-to-point PW R31↔R14 (stitched/extended across the inter-AS link via the ASBRs), with R14 bridging that PW into the AS65200 VPLS VFI. This is the recommended fallback if (a)/(b) are unsupported.
 - [ ] **Task 2.2 — Confirm support. [5 points]** Test the chosen option's syntax on the image (`show l2vpn ...` / `show mpls l2transport vc`). If native inter-AS VPLS fails to configure or stay up, fall back to option (c).
-- [ ] **Task 2.3 — Implement cross-AS reachability. [5 points]** Bring R29/R1 into the Red domain using the supported method. For the fallback: build the R1↔R14 pseudowire (across AS65100↔AS65200 transport — note this depends on inter-AS LSP/label exchange, which may itself be a WB09 Inter-AS item; document the dependency), then add that PW as a bridged member of R14's VPLS VFI so R29 shares the broadcast domain with R27/R28.
+- [ ] **Task 2.3 — Implement cross-AS reachability. [5 points]** Bring R29/R1 into the Red domain using the supported method. For the fallback: build the R31↔R14 pseudowire (across AS65100↔AS65200 transport — note this depends on inter-AS LSP/label exchange, which may itself be a WB09 Inter-AS item; document the dependency), then add that PW as a bridged member of R14's VPLS VFI so R29 shares the broadcast domain with R27/R28.
 - [ ] **Task 2.4 — Verify cross-AS L2. [0 points — verification]** From R29, reach R27 and R28 at Layer 2 (same VLAN 100 subnet). If the inter-AS transport is not yet available, record this as blocked on WB09 and verify as far as the AS boundary.
 
 > **Snapshot:** `WB07-02-vpls-crossas` (or `WB07-02-vpls-crossas-blocked` if gated on WB09 inter-AS transport).
@@ -45,8 +45,8 @@ Goal: Give R29 (on R1, AS65100) Layer-2 reachability into the Red VLAN 100 domai
 
 Goal: Convert the design to hub-and-spoke to reduce the core full mesh. N-PEs form the meshed core; a U-PE connects via a single spoke PW to an N-PE.
 
-- [ ] **Task 3.1 — N-PE / U-PE roles. [5 points]** Designate R14 and R16 as **N-PEs** (meshed core VFI between them) and R1 as a **U-PE** (spoke). The U-PE has a single spoke pseudowire into an N-PE instead of a full mesh.
-- [ ] **Task 3.2 — Spoke PW. [5 points]** Configure the R1 (U-PE) spoke pseudowire to its N-PE and add it to the N-PE's VFI/bridge-domain as a spoke (not a core-mesh) member.
+- [ ] **Task 3.1 — N-PE / U-PE roles. [5 points]** Designate R14 and R16 as **N-PEs** (meshed core VFI between them) and R31 as a **U-PE** (spoke). The U-PE has a single spoke pseudowire into an N-PE instead of a full mesh.
+- [ ] **Task 3.2 — Spoke PW. [5 points]** Configure the R31 (U-PE) spoke pseudowire to its N-PE and add it to the N-PE's VFI/bridge-domain as a spoke (not a core-mesh) member.
 - [ ] **Task 3.3 — Split-horizon on the spoke. [5 points]** Confirm the N-PE treats the spoke PW outside the core split-horizon group so spoke traffic can be forwarded to the core mesh (unlike core-to-core). Explain how H-VPLS avoids loops while still reaching the spoke.
 - [ ] **Task 3.4 — Scalability rationale. [3 points]** Document why H-VPLS reduces PW count and signaling vs. a flat N-PE full mesh (n·(n−1)/2 core PWs plus one spoke each), and the tradeoff (U-PE single point of failure unless dual-homed).
 

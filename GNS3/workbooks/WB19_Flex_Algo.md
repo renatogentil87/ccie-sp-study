@@ -1,7 +1,7 @@
 # WB19 — Flexible Algorithm (Flex-Algo)
 
 **Platform:** IOS-XR (EVE-NG — IOS-XRv9000 nodes mapped onto R1-R32 topology)
-**Scope:** Flex-Algo within AS 65100 (IS-IS L2 core, R1-R8); PEs R1/R2
+**Scope:** Flex-Algo within AS 65100 (IS-IS L2 core, R1-R8); PEs R31/R2
 **Level:** CCIE SP
 **Prerequisite:** WB16 (SR-MPLS: SRGB, prefix-SIDs installed) and WB18 affinity-map concepts
 
@@ -13,7 +13,7 @@
 > **Snapshot** before/after each section.
 
 > **Reference:** AS 65100 R1-R8, IS-IS area 49.0001 L2. Prefix-SID index = router number (WB16).
-> PEs = R1 (150.1.1.1), R2 (150.1.2.2). Core links per `00_topology_reference.md`.
+> PEs = R1 (150.1.31.31), R2 (150.1.2.2). Core links per `00_topology_reference.md`.
 > **Affinity colors used:** `red` (bit 0), `blue` (bit 1) — same affinity-map concept as WB18.
 
 ---
@@ -59,13 +59,13 @@
 
 - [ ] **Task 3.1 [2 points]** — On PE **R1**, allocate an additional **per-algo prefix-SID** on Loopback0 for algo 233 and algo 234 (`segment-routing prefix-sid index <N> algorithm 233` and `… algorithm 234`). Use distinct indexes per algo (e.g. 233-plane index 1233, 234-plane index 1234, or your scheme — document it).
 - [ ] **Task 3.2 [1 point]** — Repeat on PE **R2** with its own per-algo indexes.
-- [ ] **Task 3.3 [1 point]** — Confirm remote nodes install per-algo labels toward R1/R2 that follow the algo-233 / algo-234 constrained topology (not the algo-0 shortest path).
+- [ ] **Task 3.3 [1 point]** — Confirm remote nodes install per-algo labels toward R31/R2 that follow the algo-233 / algo-234 constrained topology (not the algo-0 shortest path).
 - [ ] **Task 3.4 [0 points — verification]** — Compare the algo-0 path vs algo-233 vs algo-234 to R1 (they should differ based on red/blue exclusions).
 
 **Verify / Snapshot**
 - [ ] `show isis segment-routing prefix-sid` — algo 0 + 233 + 234 SIDs per PE
-- [ ] `show mpls forwarding` — per-algo labels toward R1/R2
-- [ ] `show cef 150.1.1.1/32 algorithm 233 detail` vs `… algorithm 234 detail` — different paths
+- [ ] `show mpls forwarding` — per-algo labels toward R31/R2
+- [ ] `show cef 150.1.31.31/32 algorithm 233 detail` vs `… algorithm 234 detail` — different paths
 - [ ] **Snapshot:** `WB19-03-per-algo-sid`
 
 ---
@@ -146,7 +146,7 @@ Below 10:      Review the topic theory before retrying
 
 - [ ] Affinity-map (red bit 0, blue bit 1) + interface affinity advertised in IS-IS
 - [ ] Flex-Algo 233 (exclude red) and 234 (exclude blue) defined + advertised fleet-wide
-- [ ] Per-algo prefix-SIDs on R1/R2 following constrained planes
+- [ ] Per-algo prefix-SIDs on R31/R2 following constrained planes
 - [ ] SR policies constrained via sid-algorithm 233/234
 - [ ] Deterministic FAD election via priority
 - [ ] All troubleshooting drills diagnosed and recovered

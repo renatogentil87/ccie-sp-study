@@ -13,7 +13,7 @@
 
 | AS | Region | IGP | Routers | Route Reflector(s) | ASBRs | PE Routers | P Routers |
 |---|---|---|---|---|---|---|---|
-| **65100** | North | IS-IS Level-2 | R1–R8 | R7, R8 (dual RR) | R5, R6 | R1, R2 | R3, R4 |
+| **65100** | North | IS-IS Level-2 | R1–R8 | R7, R8 (dual RR) | R5, R6 | R31, R2 | R3, R4 |
 | **65200** | Central | OSPF Area 0 | R11–R16, R19 | R19 | R12 | R14, R15, R16 | R11, R13 |
 | **65300** | South | IS-IS Level-2 | R20–R23, R30 | R30 | R20, R21 | R20, R21, R22, R23 | — |
 
@@ -334,7 +334,7 @@ Candidates should assume IS-IS areas, OSPF Area 0, loopback addressing, and PE-C
 > **To:** SP Design Consultant
 > **Subject:** Customer Green is bursting past their contracted rate on R1
 >
-> Customer Green's VRF on R1 is contracted for 50 Mbps but we're seeing sustained bursts to 80 Mbps during business hours, degrading other customers' VRFs sharing the same R1 uplink. We want to enforce the contracted rate specifically at the VRF boundary on R1, not on the physical interface (since the physical interface carries multiple customers' VRFs).
+> Customer Green's VRF on R31 is contracted for 50 Mbps but we're seeing sustained bursts to 80 Mbps during business hours, degrading other customers' VRFs sharing the same R1 uplink. We want to enforce the contracted rate specifically at the VRF boundary on R31, not on the physical interface (since the physical interface carries multiple customers' VRFs).
 >
 > Explain how per-VRF policing differs from interface-level policing in terms of where in the forwarding path it's applied, and whether a single physical interface with multiple VRFs (like R1's g1/0, f3/0, f4/1 toward different customers) can have independent policing rates per VRF on the SAME physical interface, or if policing is inherently tied to the physical interface as a whole.
 
@@ -454,7 +454,7 @@ Candidates should assume IS-IS areas, OSPF Area 0, loopback addressing, and PE-C
 > **To:** SP Design Consultant
 > **Subject:** Automating low-latency paths for Customer Blue without manual tunnel config
 >
-> Customer Blue has asked for a low-latency path guarantee between their AS65100 and AS65300 sites. Rather than hand-building explicit SR-TE policies on R1 and R21, we want this automated: when a VPNv4 route for Blue is learned with a specific color/intent community, the ingress PE should automatically steer that traffic onto an SR-TE policy computed to satisfy the latency constraint, using a centralized PCE rather than relying purely on distributed IGP extensions.
+> Customer Blue has asked for a low-latency path guarantee between their AS65100 and AS65300 sites. Rather than hand-building explicit SR-TE policies on R31 and R21, we want this automated: when a VPNv4 route for Blue is learned with a specific color/intent community, the ingress PE should automatically steer that traffic onto an SR-TE policy computed to satisfy the latency constraint, using a centralized PCE rather than relying purely on distributed IGP extensions.
 >
 > Explain how SR-TE On-Demand Nexthop (ODN) triggers automatic policy instantiation from a VPNv4 color community, and what role the PCE plays versus what the headend router computes on its own (i.e., what's delegated to the PCE and why that's useful for a constraint like latency that IGP metrics alone may not capture).
 

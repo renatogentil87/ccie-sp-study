@@ -103,7 +103,7 @@ Build the full BGP overlay across all three ASes.
 
 ### Q1.5 — BGP Labeled Unicast / Unified MPLS end-to-end
 
-Using the VPNv4-enabled eBGP sessions configured in Q1.4 (R6↔R12 and R12↔R21), extend **BGP-LU (RFC 3107, `address-family ipv4 labeled-unicast` or equivalent VPNv4-based unified MPLS technique available in 15.2(4)M11)** so that Loopback0 host routes for PE routers in AS65100 (R1, R2) and AS65300 (R20, R21, R22, R23) are reachable with a **single, continuous labeled path** that never requires IP lookup/recursion at an ASBR.
+Using the VPNv4-enabled eBGP sessions configured in Q1.4 (R6↔R12 and R12↔R21), extend **BGP-LU (RFC 3107, `address-family ipv4 labeled-unicast` or equivalent VPNv4-based unified MPLS technique available in 15.2(4)M11)** so that Loopback0 host routes for PE routers in AS65100 (R31, R2) and AS65300 (R20, R21, R22, R23) are reachable with a **single, continuous labeled path** that never requires IP lookup/recursion at an ASBR.
 
 Requirements:
 - R5, R6 (AS65100 ASBRs), R12 (AS65200 ASBR), and R20, R21 (AS65300 ASBRs) must redistribute/advertise their respective domains' PE loopbacks as labeled routes across the inter-AS eBGP sessions, assigning a local label at each ASBR hop (3-hop label stack behavior across the three ASes is acceptable; true end-to-end unified MPLS with a single unchanged label is a bonus but not required given the eBGP-at-every-AS-boundary design).
@@ -119,12 +119,12 @@ Requirements:
 Build three Layer-3 VPNs end-to-end per the Customer VPN Design table in the topology reference.
 
 **VRF GREEN** (customer AS 65910; CEs R9, R10 in AS65100, R18 in AS65200; plus R17 OSPF PE-CE in AS65200):
-- Create VRF `GREEN` on R1 (facing R9 and R10) and on R16 (facing R18) and on R15 (facing R17).
+- Create VRF `GREEN` on R31 (facing R9 and R10) and on R16 (facing R18) and on R15 (facing R17).
 - RD: `65100:910` on AS65100 PEs, `65200:910` on AS65200 PEs (different RDs per AS is intentional — do not force a single RD across AS boundaries).
 - Route-targets: export/import `65910:1` on all GREEN VRFs network-wide so that GREEN sites in both ASes see each other's routes via VPNv4.
-- PE-CE routing to R9, R10, R18: **eBGP**, customer AS 65910, using the IPs from the PE-CE table (R1↔R9 192.168.1.0/24, R1↔R10 192.168.2.0/24, R16↔R18 192.168.7.0/24).
+- PE-CE routing to R9, R10, R18: **eBGP**, customer AS 65910, using the IPs from the PE-CE table (R31↔R9 192.168.1.0/24, R31↔R10 192.168.2.0/24, R16↔R18 192.168.7.0/24).
 - PE-CE routing to R17: **OSPF**, a VRF-lite OSPF process on R15 bound to VRF GREEN, redistributing between VRF-OSPF and VPNv4-BGP in both directions, with the correct **domain-ID / down-bit / VPN tag** handling so that R17's OSPF routes do not get looped back into OSPF as an intra-area route (standard MPLS-VPN OSPF PE-CE superbackbone behavior).
-- Since R9 and R10 both appear in VRF GREEN **and** R10 also connects to R2 (also GREEN, same AS, see PE-CE table: R2↔R10 192.168.4.0/24) — this creates two active CE routers (R9, R10) each dual/multi-homed into AS65100's GREEN VRF via two different PEs. Configure **AS-override** on R1 and R2 toward their respective GREEN CEs only if/where the customer AS (65910) would otherwise appear twice in a path a CE must accept — identify where this is actually required based on the topology and justify (in your own working notes, not graded) why it is or isn't needed on each PE.
+- Since R9 and R10 both appear in VRF GREEN **and** R10 also connects to R2 (also GREEN, same AS, see PE-CE table: R2↔R10 192.168.4.0/24) — this creates two active CE routers (R9, R10) each dual/multi-homed into AS65100's GREEN VRF via two different PEs. Configure **AS-override** on R31 and R2 toward their respective GREEN CEs only if/where the customer AS (65910) would otherwise appear twice in a path a CE must accept — identify where this is actually required based on the topology and justify (in your own working notes, not graded) why it is or isn't needed on each PE.
 
 **VRF YELLOW** (customer AS 65024; CEs R24 in AS65300, R26 in AS65200):
 - Create VRF `YELLOW` on R20 and R22 (both facing R24 — R24 is dual-homed, see PE-CE table: R20↔R24 192.168.9.0/24 and R22↔R24 192.168.11.0/24) and on R16 (facing R26, 192.168.8.0/24).
@@ -134,8 +134,8 @@ Build three Layer-3 VPNs end-to-end per the Customer VPN Design table in the top
 - This dual-homing of R24 to both R20 and R22 is the scenario that creates the routing-loop risk fixed with **Site of Origin** in Q3.2 — do not pre-emptively configure SoO here; that is graded separately in Section 3.
 
 **VRF BLUE** (customer AS 65025; CEs R32 in AS65100, R25 — which has links into both AS65200 and AS65300):
-- Create VRF `BLUE` on R1 (facing R32, 192.168.3.0/24), on R14 (facing R25, 192.168.5.0/24), and on R21 and R23 (both facing R25 — R25 is dual/multi-homed with links to R21 at 192.168.10.0/24 and R23 at 192.168.12.0/24).
-- RD: `65100:25` on R1, `65200:25` on R14, `65300:25` on R21 and R23.
+- Create VRF `BLUE` on R31 (facing R32, 192.168.3.0/24), on R14 (facing R25, 192.168.5.0/24), and on R21 and R23 (both facing R25 — R25 is dual/multi-homed with links to R21 at 192.168.10.0/24 and R23 at 192.168.12.0/24).
+- RD: `65100:25` on R31, `65200:25` on R14, `65300:25` on R21 and R23.
 - RT: export/import `65025:1` network-wide for BLUE — this is the VPN that spans **all three ASes**, so RT consistency across AS65100/65200/65300 route-reflectors and ASBRs is critical; verify VPNv4 updates for BLUE actually cross both inter-AS boundaries (AS65100↔AS65200 and AS65200↔AS65300) that lie on the path.
 - PE-CE routing: eBGP, customer AS 65025, on all BLUE PE-CE links.
 - Because R25 is multihomed into two different ASes (65200 and 65300) for the same customer, apply **Site of Origin** on R14, R21, and R23 for the BLUE VRF now (SoO value `65025:2500`, representing "R25's site") to prevent any possibility of a route learned from R25 at one PE being re-advertised back to R25 through a different PE across the inter-AS VPNv4 path.
@@ -235,7 +235,7 @@ Across all VRF PE-CE sessions built in Q2.1 (GREEN, YELLOW, BLUE) and the native
 - Ensure that **no VRF PE ever redistributes connected or static routes into the customer-facing PE-CE protocol** except the PE-CE link's own connected subnet (which should be covered by the protocol's network statement or interface participation, not blanket redistribution).
 - Ensure that **no two customer VPNs' routes are ever visible to each other's CE routers** — e.g., R24 (Yellow) must never learn a Green or Blue prefix, and R32 (Blue) must never learn a Yellow or Green prefix, even transiently.
 - For the OSPF PE-CE session to R17 (VRF GREEN on R15), confirm the **OSPF domain-ID** is configured consistently as `0.0.0.1` (candidate's choice, but must match if GREEN's OSPF PE-CE presence is ever extended to a second OSPF PE in GREEN) and that routes crossing the VPN backbone and re-entering OSPF at a different PE would correctly set the **DN-bit** so they are not treated as intra-area by R17 (even though only one GREEN OSPF PE exists today, configure this defensively/correctly as if a second one could be added).
-- Set a **maximum-prefix** limit of 50 on every PE-CE eBGP session (R1↔R9, R1↔R10, R1↔R32, R2↔R10, R14↔R25, R16↔R18, R16↔R26, R20↔R24, R21↔R25, R22↔R24, R23↔R25) as a safety control against a misbehaving CE flooding the VRF table — this ties into Q5.2's broader BGP max-prefix requirement but must specifically be present on every PE-CE session, not only inter-AS/core sessions.
+- Set a **maximum-prefix** limit of 50 on every PE-CE eBGP session (R31↔R9, R31↔R10, R31↔R32, R2↔R10, R14↔R25, R16↔R18, R16↔R26, R20↔R24, R21↔R25, R22↔R24, R23↔R25) as a safety control against a misbehaving CE flooding the VRF table — this ties into Q5.2's broader BGP max-prefix requirement but must specifically be present on every PE-CE session, not only inter-AS/core sessions.
 
 ---
 
@@ -256,8 +256,8 @@ On **R16** (which has three distinct customer-facing attachment circuits: VRF GR
 Build an MPLS-TE tunnel inside **AS 65100** and protect it with Fast Reroute.
 
 Requirements:
-- Enable MPLS-TE extensions for IS-IS (`mpls traffic-eng level-2`, or equivalent) on all AS65100 core routers participating in the TE topology: R1, R2, R3, R4, R5, R6, R7, R8.
-- Build a TE tunnel, **Tunnel1**, from **R1 to R6**, with an **explicit, strict path** that forces the LSP via R1→R3→R5→R6 (deliberately avoiding the R1→R2→R4→R6 alternate path), using an IP explicit-path with strict next-hops matching the topology reference's AS65100 link table.
+- Enable MPLS-TE extensions for IS-IS (`mpls traffic-eng level-2`, or equivalent) on all AS65100 core routers participating in the TE topology: R31, R2, R3, R4, R5, R6, R7, R8.
+- Build a TE tunnel, **Tunnel1**, from **R1 to R6**, with an **explicit, strict path** that forces the LSP via R31→R3→R5→R6 (deliberately avoiding the R31→R2→R4→R6 alternate path), using an IP explicit-path with strict next-hops matching the topology reference's AS65100 link table.
 - Set the tunnel's bandwidth reservation to 10 Mbps and configure the tunnel for `autoroute announce` so that IGP-derived traffic from R1 toward R6-reachable destinations prefers the TE tunnel over the native IGP-computed SPF path once the tunnel is up.
 - Protect the R3→R5 link (the midpoint link of the explicit path, and the one most likely to be a single point of failure in a 7-router topology) with an **MPLS-TE Fast-Reroute (FRR) backup tunnel**: configure a **link-protection** backup tunnel from R3 that bypasses the R3-R5 link via an alternate path (R3→R4→R6→R5, or R3→R7→R5 if that adjacency and sufficient bandwidth exist per the topology — candidate must determine the valid bypass path from the topology reference) and signal `fast-reroute` on the primary Tunnel1 at R3.
 - Verify FRR protection is actually in a protected state (`show mpls traffic-eng fast-reroute database` / `show mpls traffic-eng tunnels backup`) before declaring the task complete — a backup tunnel that is configured but not actually providing protection for the primary's path does not satisfy this requirement.
@@ -317,7 +317,7 @@ This task consolidates and verifies the authentication already mandated in Secti
 - Apply this CoPP policy-map under `control-plane` on each of the five ASBRs and four RRs.
 
 **RTBH**, triggered from a dedicated trigger router (candidate's choice — recommend R30, the AS65300 RR, as the trigger source since it is not on a transit path for any inter-AS traffic):
-- Build the classic RTBH design: a static route to `Null0` for a /32 "trigger" prefix (e.g., `192.0.2.1/32`, a documentation/test address not used elsewhere in the lab) on every PE/ASBR that should participate in blackholing (R1, R2, R5, R6 in AS65100; R12, R14, R15, R16 in AS65200; R20, R21, R22, R23 in AS65300), each pointing that /32 to their own local Null0.
+- Build the classic RTBH design: a static route to `Null0` for a /32 "trigger" prefix (e.g., `192.0.2.1/32`, a documentation/test address not used elsewhere in the lab) on every PE/ASBR that should participate in blackholing (R31, R2, R5, R6 in AS65100; R12, R14, R15, R16 in AS65200; R20, R21, R22, R23 in AS65300), each pointing that /32 to their own local Null0.
 - On the trigger router (R30), redistribute a **tagged static route** for a victim/attacker test address (candidate's choice, e.g. `192.168.100.10/32`, chosen from the CE-CE link subnet in the topology reference so it's a real, revertible test) into iBGP with next-hop set to the `192.0.2.1` trigger address and a well-known no-export-safe community so the triggered blackhole route stays within the SP's own iBGP/VPNv4 domain and is not accidentally leaked to a customer or peer AS.
 - Verify that once triggered, traffic toward the victim address is dropped (sent to Null0) at the **ingress** PE closest to the attack source, not only at the destination PE — this is the entire point of RTBH (push the drop decision to the network edge).
 - Revert the RTBH trigger at the end of the exercise so it does not interfere with any later verification in the lab.
@@ -339,12 +339,12 @@ Using the IPv6 addressing plan in the topology reference (loopbacks `2001:db8:1:
 
 **6PE (global IPv6 reachability for provider-edge loopbacks/transit):**
 - Enable IPv6 on Loopback0 of every PE/P/ASBR/RR router in all three ASes using the addresses from the topology reference's IPv6 Loopbacks table.
-- Configure **6PE** on the PE routers that need to exchange native IPv6 customer or infrastructure routes end-to-end across the IPv4 MPLS core: at minimum R1, R2 (AS65100 PEs), R14, R15, R16 (AS65200 PEs), and R20, R21, R22, R23 (AS65300 PEs/ASBRs).
+- Configure **6PE** on the PE routers that need to exchange native IPv6 customer or infrastructure routes end-to-end across the IPv4 MPLS core: at minimum R31, R2 (AS65100 PEs), R14, R15, R16 (AS65200 PEs), and R20, R21, R22, R23 (AS65300 PEs/ASBRs).
 - Use `address-family ipv6` BGP sessions (iBGP, reusing the existing RR topology from Q1.4 — R7/R8, R19, R30 must also carry the IPv6 AF as route-reflectors even though they are not 6PE edge routers themselves) carrying IPv6 NLRI with an **IPv4-mapped next-hop** (RFC 4798 behavior — `::FFFF:<ipv4>` next-hop encoding) so that the existing IPv4 LDP-labeled LSPs are reused to forward IPv6 traffic without any native IPv6 label distribution in the core.
 - Do **not** enable IPv6 CEF/native IPv6 forwarding on any P-only router (R3, R4, R11, R13) — these must remain pure IPv4-MPLS in the data plane for this task; only the edge (PE/ASBR/RR control-plane) needs IPv6 BGP awareness.
 
 **6VPE (IPv6 VPN, applied to one existing VRF):**
-- Extend **VRF GREEN** (from Q2.1) to carry IPv6 customer prefixes as a 6VPE deployment: enable `address-family ipv6 vrf GREEN` on R1, R15, and R16, assign IPv6 addressing on the GREEN PE-CE links (candidate's choice of a `/64` per link, consistent with the `2001:db8:0:XY::` inter-link numbering style already used elsewhere in the topology reference, e.g., invent `2001:db8:9:X::` for new PE-CE IPv6 subnets not already defined there since the reference's IPv6 table only covers core/inter-AS links), and run **eBGP IPv6** to R9, R10, and R18 for the GREEN customer dual-stack extension (R17's OSPF GREEN session may remain IPv4-only; 6VPE over OSPFv3 PE-CE is not required for this task).
+- Extend **VRF GREEN** (from Q2.1) to carry IPv6 customer prefixes as a 6VPE deployment: enable `address-family ipv6 vrf GREEN` on R31, R15, and R16, assign IPv6 addressing on the GREEN PE-CE links (candidate's choice of a `/64` per link, consistent with the `2001:db8:0:XY::` inter-link numbering style already used elsewhere in the topology reference, e.g., invent `2001:db8:9:X::` for new PE-CE IPv6 subnets not already defined there since the reference's IPv6 table only covers core/inter-AS links), and run **eBGP IPv6** to R9, R10, and R18 for the GREEN customer dual-stack extension (R17's OSPF GREEN session may remain IPv4-only; 6VPE over OSPFv3 PE-CE is not required for this task).
 - Confirm the 6VPE IPv6 VPN routes are carried as **VPNv6 (`address-family vpnv6`)** NLRI across the existing MPLS/LDP IPv4 core and iBGP/RR topology — no new core-facing protocol or label distribution should be required beyond what 6PE already established, since 6VPE reuses the same IPv4-MPLS transport with a VPNv6 (not plain IPv6) BGP NLRI and label.
 - Verify dual-stack reachability: every GREEN CE (R9, R10, R18) must be able to ping the other GREEN CEs' IPv6 addresses, in addition to the existing IPv4 reachability already validated in Q2.1.
 

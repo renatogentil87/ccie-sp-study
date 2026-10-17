@@ -108,7 +108,7 @@ interface GigabitEthernet2/0
 show isis neighbors                              ! adjacencies still UP (shared with IPv4)
 show ipv6 route isis                             ! all intra-AS IPv6 loopbacks
 show isis ipv6 topology                           ! single topology, all nodes
-ping ipv6 2001:db8:1::8 source 2001:db8:1::1     ! R1→R8 (AS65100)
+ping ipv6 2001:db8:1::8 source 2001:db8:1::1     ! R31→R8 (AS65100)
 ping ipv6 2001:db8:3::30 source 2001:db8:3::20   ! R20→R30 (AS65300)
 ```
 
@@ -355,5 +355,5 @@ traceroute ipv6 2001:db8:3::23                        ! verify ASBR hops R5/R6, 
 - [ ] eBGP IPv6 up on all 4 ASBR pairs; PE loopbacks advertised
 - [ ] iBGP IPv6 via RRs (R7/R8, R19, R30) with next-hop-self on ASBRs
 - [ ] `show bgp ipv6 unicast summary` all neighbors Up
-- [ ] Cross-AS IPv6 ping R1↔R23 and R14↔R23 succeed
+- [ ] Cross-AS IPv6 ping R31↔R23 and R14↔R23 succeed
 - [ ] **GNS3 snapshot:** `wb15-ipv6-routing-complete`

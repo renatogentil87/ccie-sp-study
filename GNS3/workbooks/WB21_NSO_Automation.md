@@ -13,7 +13,7 @@
 > Work **progressively**: verify each section before advancing.
 > **Snapshot** NSO (`ncs-backup`) and the devices before/after each section.
 
-> **Reference devices (manage from NSO):** PEs R1 (150.1.1.1), R2 (150.1.2.2), R14 (150.2.14.14), R22 (150.3.22.22), R23 (150.3.23.23); RRs R7/R8/R19/R30.
+> **Reference devices (manage from NSO):** PEs R1 (150.1.31.31), R2 (150.1.2.2), R14 (150.2.14.14), R22 (150.3.22.22), R23 (150.3.23.23); RRs R7/R8/R19/R30.
 > NSO runs on a management host reachable to all device mgmt addresses.
 > Telemetry collector (TIG/Pipeline) reachable from the XR nodes.
 

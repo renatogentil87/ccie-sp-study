@@ -21,7 +21,7 @@
 | 65300 | `2001:db8:3:XY::/64` | `2001:db8:3::R/128` |
 
 **Examples:**
-- R1↔R3 (f0/0, 10.1.3.x) → `2001:db8:1:13::1` / `2001:db8:1:13::3`
+- R31↔R3 (f0/0, 10.1.3.x) → `2001:db8:1:13::1` / `2001:db8:1:13::3`
 - R1 Lo0 → `2001:db8:1::1/128`
 - R11↔R12 (20.11.12.x) → `2001:db8:2:1112::11` / `::12`  *(use `1112` when both numbers are 2-digit; keep it unambiguous)*
 - R20↔R21 (30.20.21.x) → `2001:db8:3:2021::20` / `::21`
@@ -109,7 +109,7 @@
   *Verify:* `show vrf detail` shows the IPv6 AF.
 
 - [ ] **Task 5.2 — IPv6 PE-CE. [1 point]**
-  Configure IPv6 on a PE-CE link inside the VRF (e.g. R20↔R24 Yellow, or R1↔R32 Blue) and run IPv6 eBGP (or static) PE-CE.
+  Configure IPv6 on a PE-CE link inside the VRF (e.g. R20↔R24 Yellow, or R31↔R32 Blue) and run IPv6 eBGP (or static) PE-CE.
   *Verify:* `show bgp vpnv6 unicast vrf <name> summary` → CE neighbor Up.
 
 - [ ] **Task 5.3 — Activate VPNv6 on PE↔RR + inter-AS. [2 points]**

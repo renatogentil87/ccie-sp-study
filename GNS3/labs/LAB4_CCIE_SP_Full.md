@@ -7,7 +7,7 @@
 
 > **How LAB 4 differs from LAB 3 (read this first).** Same R1–R32, same 3 ASes, same loopbacks/links. The *techniques* change:
 > - **IS-IS is now multi-level** (L1 on PEs/ASBRs, L1/L2 on P routers) — not L2-only.
-> - **Prefix-SID index scheme is different**: `index = last octet of Loopback0 × 10` (R1→10, R14→140, R20→200).
+> - **Prefix-SID index scheme is different**: `index = last octet of Loopback0 × 10` (R31→10, R14→140, R20→200).
 > - **Flex-Algo uses `include-all`** (affirmative affinity) — not `exclude-any`.
 > - **SR-TE uses explicit SID-lists built from prefix-SIDs *and* adjacency-SIDs** — not dynamic optimization.
 > - **SRv6 moves to AS 65100 (Emerald)**; AS 65300 (Gold) now runs **SR-MPLS** (swapped vs LAB3).
@@ -28,7 +28,7 @@ Same 3 autonomous systems, same roles, same R-numbers and IPs as the GNS3 base t
 
 | AS | Name | IGP (LAB4) | Transport (LAB4) | Routers (role) |
 |----|------|-----|-----------|-----------------|
-| **65100** | Emerald | IS-IS **multi-level** | **SRv6** native (swapped from LAB3) | R1(PE), R2(PE), R3(P), R4(P), R5(ASBR), R6(ASBR), R7(RR), R8(RR+PCE) |
+| **65100** | Emerald | IS-IS **multi-level** | **SRv6** native (swapped from LAB3) | R31(PE), R2(PE), R3(P), R4(P), R5(ASBR), R6(ASBR), R7(RR), R8(RR+PCE) |
 | **65200** | Garnet | OSPF Area 0 + **RSVP MPLS-TE** | SR-MPLS + MPLS-TE | R11(P), R12(ASBR), R13(P), R14(PE), R15(PE), R16(PE), R19(RR+PCE) |
 | **65300** | Gold | IS-IS **multi-level** | **SR-MPLS** (swapped from LAB3) | R20(ASBR/PE), R21(ASBR/PE), R22(PE), R23(PE), R30(RR+PCE) |
 
@@ -36,7 +36,7 @@ Same 3 autonomous systems, same roles, same R-numbers and IPs as the GNS3 base t
 
 | R | Lo0 | R | Lo0 | R | Lo0 |
 |---|-----|---|-----|---|-----|
-| R1 | 150.1.1.1/32 | R8 | 150.1.8.8/32 | R20 | 150.3.20.20/32 |
+| R31 | 150.1.31.31/32 | R8 | 150.1.8.8/32 | R20 | 150.3.20.20/32 |
 | R2 | 150.1.2.2/32 | R11 | 150.2.11.11/32 | R21 | 150.3.21.21/32 |
 | R3 | 150.1.3.3/32 | R12 | 150.2.12.12/32 | R22 | 150.3.22.22/32 |
 | R4 | 150.1.4.4/32 | R13 | 150.2.13.13/32 | R23 | 150.3.23.23/32 |
@@ -72,7 +72,7 @@ Same 3 autonomous systems, same roles, same R-numbers and IPs as the GNS3 base t
 | **SRv6 locator block (Emerald, AS 65100)** | `fc00:1:<R#>::/48`, F3216 uSID format |
 | Flex-Algo 129 (low-latency, **include-all**) | affinity-colored links, separate SPF |
 | Color communities (SR-TE / SR-ODN) | 300 = explicit SID-list TE, 400 = ODN low-latency |
-| EVI numbers (EVPN-VPWS) | EVI **2001** (R1↔R16 Red circuit), EVI **2002** (R14↔R15 secondary) |
+| EVI numbers (EVPN-VPWS) | EVI **2001** (R31↔R16 Red circuit), EVI **2002** (R14↔R15 secondary) |
 | mVPN | **Profile 3** (BGP C-multicast, mLDP P2MP core) |
 
 ---
@@ -85,7 +85,7 @@ On the **Emerald AS 65100** core (R1–R8), build the IS-IS process as a **multi
 
 1. Single IS-IS instance, area **49.0001**, dual-stack (IPv4 + IPv6 unicast), **single-topology** (no MT).
 2. **Level assignment by role:**
-   - **PEs and ASBRs** (R1, R2, R5, R6) run **Level-1 only** on their core-facing interfaces.
+   - **PEs and ASBRs** (R31, R2, R5, R6) run **Level-1 only** on their core-facing interfaces.
    - **P routers** (R3, R4) run **Level-1-2** on every core interface — they are the L1/L2 attachment points between the L1 edge and the L2 backbone.
    - **RRs** (R7, R8) run **Level-2 only** toward the P tier.
    - Set `is-type` appropriately per node (`level-1`, `level-1-2`, `level-2-only`) so the LSDB splits correctly into L1 and L2.
@@ -94,7 +94,7 @@ On the **Emerald AS 65100** core (R1–R8), build the IS-IS process as a **multi
 5. Set the **overload-bit** on R7 and R8 with `set-overload-bit on-startup wait-for-bgp` so the RRs do not attract transit before BGP converges after reload.
 6. Reference a keychain `ISIS-KEY-L4` for **hello + LSP authentication** at both levels on all core interfaces (full keychain built in Task 5.x; here, only the reference).
 
-Verify: `show isis neighbors` (confirm L1 vs L1L2 vs L2 adjacency types), `show isis database level-1`, `show isis database level-2`, `show route 150.1.7.7/32` on R1 (confirm it resolves via leaked route or default), `show isis adjacency detail`.
+Verify: `show isis neighbors` (confirm L1 vs L1L2 vs L2 adjacency types), `show isis database level-1`, `show isis database level-2`, `show route 150.1.7.7/32` on R31 (confirm it resolves via leaked route or default), `show isis adjacency detail`.
 
 ### Task 1.2 — BGP Unified MPLS (BGP-LU / Seamless MPLS) across all three ASes
 
@@ -143,7 +143,7 @@ Build the **Emerald AS 65100** core (R1–R8) natively on **SRv6** using uSID / 
 1. Define an **F3216 locator plan** carved from `fc00:1:<R#>::/48` on each Emerald router (R7 → `fc00:1:7::/48`, R1 → `fc00:1:1::/48`, etc.): 32-bit block + 16-bit uSID function per hop.
 2. Configure **PSP (Penultimate Segment Pop)** and **USD (Ultimate Segment Decapsulation)** behaviors on the End / End.X SIDs so the penultimate hop pops and the final hop decapsulates, trimming SRH processing on transit.
 3. Advertise each locator under IS-IS SRv6 with a **tag 1000** so locator-derived routes can be filtered in route-policy for controlled inter-domain leaking (ties into the Task 1.1 L2→L1 leaking decision).
-4. Build **SRv6 L3VPN transport**: on R1 and R2, configure the Blue/Green VRFs with `segment-routing srv6` encapsulation, per-VRF SID allocation (`locator <name> ... alloc mode per-vrf`), and confirm VPNv4/VPNv6 routes between R1/R2 carry an **End.DT4 / End.DT6 SRv6 SID** instead of an MPLS label.
+4. Build **SRv6 L3VPN transport**: on R31 and R2, configure the Blue/Green VRFs with `segment-routing srv6` encapsulation, per-VRF SID allocation (`locator <name> ... alloc mode per-vrf`), and confirm VPNv4/VPNv6 routes between R31/R2 carry an **End.DT4 / End.DT6 SRv6 SID** instead of an MPLS label.
 5. Confirm the data plane shows an IPv6 SRv6 header (`show cef vrf <name> <prefix>`), not an MPLS stack.
 
 Verify: `show segment-routing srv6 sid`, `show segment-routing srv6 locator detail`, `show isis database verbose | include SRv6|Locator`, `show bgp vpnv4 unicast vrf <name> <prefix> detail` (End.DT4 SID present).
@@ -187,11 +187,11 @@ Verify: `show l2vpn xconnect group RED`, `show evpn evi 2002 detail`, `show l2vp
 
 1. Build **intra-AS L3VPN** within Garnet for the **Green** customer: R17 via OSPF PE-CE on R15, R18 via eBGP AS 65910 on R16.
 2. **Inter-AS Option B on all four inter-AS links** — R5↔R11, R6↔R12, R6↔R20, R12↔R21 — carrying VPNv4 (and VPNv6 for 6VPE, Task 3.x): VPNv4 **eBGP directly between the ASBR pairs**, each ASBR re-originating with **next-hop-self and a fresh label** (`retain route-target all` on the ASBRs so RTs are not filtered before re-advertisement). No RR relay between ASes.
-3. On **some PEs use `redistribute connected`** into the VRF BGP AF (instead of `network` statements) — specifically on **R1 and R20** redistribute the connected PE-CE subnets into VPNv4 with a route-policy that scopes exactly which connected interfaces leak (avoid leaking core/management connecteds). On the remaining PEs you may keep explicit `network`/redistribute-BGP as appropriate; the point is to practice both styles and the route-policy guardrail that `redistribute connected` demands.
+3. On **some PEs use `redistribute connected`** into the VRF BGP AF (instead of `network` statements) — specifically on **R31 and R20** redistribute the connected PE-CE subnets into VPNv4 with a route-policy that scopes exactly which connected interfaces leak (avoid leaking core/management connecteds). On the remaining PEs you may keep explicit `network`/redistribute-BGP as appropriate; the point is to practice both styles and the route-policy guardrail that `redistribute connected` demands.
 4. On the OSPF PE-CE link (R15↔R17) handle backbone transparency via **down-bit / domain-tag** (or sham-link if continuity is required) so Area 0 isn't falsely inferred across the core.
 5. On a hub-and-spoke eBGP VPN where spoke CEs share one ASN, configure **`as-override`** on the PE so AS_PATH loop detection doesn't drop the route at the spoke.
 
-Verify: `show bgp vpnv4 unicast vrf GREEN`, `show bgp vpnv4 unicast neighbor <peer-ASBR> advertised-routes` (confirm NH-self + label swap at each Option B hop), `show route vrf GREEN <prefix>`, confirm `redistribute connected` on R1/R20 leaks only the intended PE-CE connecteds.
+Verify: `show bgp vpnv4 unicast vrf GREEN`, `show bgp vpnv4 unicast neighbor <peer-ASBR> advertised-routes` (confirm NH-self + label swap at each Option B hop), `show route vrf GREEN <prefix>`, confirm `redistribute connected` on R31/R20 leaks only the intended PE-CE connecteds.
 
 ### Task 2.3 — Multicast VPN: **mVPN Profile 3** (BGP C-multicast, mLDP P2MP core)
 
@@ -375,4 +375,4 @@ Explain **why** a `C`/ASCII locale produces a `UnicodeDecodeError` when the play
 
 > **Dependency sequencing.** Section 1 (multi-level IS-IS, SR-MPLS in Gold/Garnet, SRv6 in Emerald, Flex-Algo include-all) must be functional before Section 2's services ride on it. Section 1.4's explicit SID-lists and 1.6's ODN color steering feed Section 2's L3VPN/EVPN. Section 2.2's Option-B-everywhere boundary is what Section 3.1's SoO must survive. Section 4.1's RSVP-TE interfaces are the ones Section 5.2 authenticates (RSVP auth). Section 5.1's MPP inband policy is the cross-check for Section 6.1 telemetry and 6.4 Ansible transport. Keychains referenced in Task 1.1 are completed in Task 5.1.
 
-> **LAB 4 vs LAB 3 — quick diff for self-checking.** Multi-level IS-IS (not L2-only) · prefix-SID ×10 (not ×1) · Flex-Algo include-all (not exclude-any) · explicit SID-lists w/ adjacency-SIDs (not dynamic) · SRv6 in Emerald (not Gold) · SR-ODN 3000 us ECMP margin · Option B everywhere (no Option A) · EVI 2001/2002 (not 1001/1002) · mVPN Profile 3 (not Profile 0) · QoS ingress-mark+EXP (not egress shape) · redistribute-connected on R1/R20 · SoO on Blue R25 (not Yellow R24) · 6VPE for Green (not Blue) · RSVP MPLS-TE in AS65200 (not SR HA) · BFD for IS-IS (not BGP) · Flowspec + TCP-AO + RSVP-auth · NSO reconcile + Ansible encoding MCQ.
+> **LAB 4 vs LAB 3 — quick diff for self-checking.** Multi-level IS-IS (not L2-only) · prefix-SID ×10 (not ×1) · Flex-Algo include-all (not exclude-any) · explicit SID-lists w/ adjacency-SIDs (not dynamic) · SRv6 in Emerald (not Gold) · SR-ODN 3000 us ECMP margin · Option B everywhere (no Option A) · EVI 2001/2002 (not 1001/1002) · mVPN Profile 3 (not Profile 0) · QoS ingress-mark+EXP (not egress shape) · redistribute-connected on R31/R20 · SoO on Blue R25 (not Yellow R24) · 6VPE for Green (not Blue) · RSVP MPLS-TE in AS65200 (not SR HA) · BFD for IS-IS (not BGP) · Flowspec + TCP-AO + RSVP-auth · NSO reconcile + Ansible encoding MCQ.

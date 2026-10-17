@@ -14,7 +14,7 @@
 | YELLOW | Yellow | 65024 | 65024:100 | `<PE-loopback>:100` | R16 (g2/0→R26), R20 (f3/0→R24), R22 (f0/0→R24) |
 | BLUE | Blue | 65025 | 65025:100 | `<PE-loopback>:100` | R1 (f4/1→R32), R14 (f3/0→R25), R21 (g2/0→R25), R23 (f3/0→R25) |
 
-**RD per-SP convention:** each PE uses `<its-loopback-as-dotted>:100`, e.g. R1 → `1.1.1.1:100`. Unique RD per PE per VRF guarantees unique VPNv4 NLRI, which is required so a RR/ASBR does not treat two PEs' identical customer prefixes as the same route (important for dual-homing and multipath). Route Target stays constant per customer so routes are imported into the right VRF everywhere.
+**RD per-SP convention:** each PE uses `<its-loopback-as-dotted>:100`, e.g. R31 → `31.31.31.31:100`. Unique RD per PE per VRF guarantees unique VPNv4 NLRI, which is required so a RR/ASBR does not treat two PEs' identical customer prefixes as the same route (important for dual-homing and multipath). Route Target stays constant per customer so routes are imported into the right VRF everywhere.
 
 > Note on cross-AS customers (Green spans 65100+65200, Blue spans 65100+65200+65300, Yellow spans 65200+65300): within each AS the VRF/RT config below is complete. Carrying VPNv4 **between** ASes requires Inter-AS Option A/B/C — see WB09. The per-AS RT value is kept identical (e.g. 65910:100) so that once inter-AS VPNv4 exchange is enabled, import/export "just works."
 
@@ -105,7 +105,7 @@ ip vrf BLUE
 !
 ```
 
-> R1 RD for BLUE is `1.1.1.1:102` (GREEN used `:100`), again to keep RDs unique per VRF on that PE.
+> R31 RD for BLUE uses a unique RD (GREEN used `:100`), again to keep RDs unique per VRF on that PE.
 
 ---
 
@@ -311,7 +311,7 @@ router bgp 65300
 
 ## Section 4: CE-side BGP (reference)
 
-CEs run plain eBGP toward their PE(s). Example R10 (dual-homed Green CE to R1 and R2):
+CEs run plain eBGP toward their PE(s). Example R9 (dual-homed Green CE to R31 and R2):
 
 ```
 ! R10
@@ -367,17 +367,17 @@ router ospf 1
 
 ## Section 6: as-override and SoO (dual-homing loop prevention)
 
-### 6.1 as-override (R1, R2 toward R10)
+### 6.1 as-override (R31, R2 toward R10)
 
 R10 is in AS 65910, the same AS as R9 and R18. Without `as-override`, when a Green route (origin AS 65910) is sent to R10, R10 rejects it (its own AS in the AS-PATH). `as-override` rewrites occurrences of the CE's AS in the AS-PATH with the SP AS, so R10 accepts it.
 
-Already applied in Section 3 on R1 (`neighbor 192.168.2.10 as-override`) and R2 (`neighbor 192.168.4.10 as-override`).
+Already applied in Section 3 on R31 (`neighbor 192.168.2.10 as-override`) and R2 (`neighbor 192.168.4.10 as-override`).
 
 ### 6.2 SoO — Site-of-Origin (R10 dual-homed interfaces)
 
 `as-override` reopens a loop risk: a route R10 originates could come back to R10 via the other PE with the AS rewritten, and R10 would accept it. SoO tags routes with the originating site; a PE will not re-advertise a route back toward a CE interface carrying the same SoO.
 
-Tag both R1→R10 and R2→R10 with the **same** SoO (same physical site = R10):
+Tag both R31→R10 and R2→R10 with the **same** SoO (same physical site = R10):
 
 ```
 ! Route-map referenced in Section 3 on both R1 (f3/0) and R2 (g1/0)
@@ -406,7 +406,7 @@ router bgp 65100
 !
 ```
 
-> Same SoO value `65910:10` on both R1 and R2 links to R10 = "these two links reach the same site." A PE drops a route on egress toward a CE if that route carries an SoO matching the egress link. This stops the as-override-induced loop for R10.
+> Same SoO value `65910:10` on both R31 and R2 links to R10 = "these two links reach the same site." A PE drops a route on egress toward a CE if that route carries an SoO matching the egress link. This stops the as-override-induced loop for R10.
 
 > For Blue R25 (three attachments: R14, R21, R23) apply a single SoO (e.g. `65025:25`) on all three PE-CE neighbors if R25 is treated as one site. If R25 represents distinct sites per link, use distinct SoO values instead.
 

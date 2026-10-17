@@ -15,7 +15,7 @@ Identical topology to the Dynamips labs. Same 3 autonomous systems, same roles, 
 
 | AS | IGP | Transport (this lab) | Routers (role) |
 |----|-----|----------------------|-----------------|
-| **65100** | IS-IS L2 | **SR-MPLS** (prefix-SIDs, TI-LFA, Flex-Algo) | R1(PE), R2(PE), R3(P), R4(P), R5(ASBR), R6(ASBR), R7(RR), R8(RR) |
+| **65100** | IS-IS L2 | **SR-MPLS** (prefix-SIDs, TI-LFA, Flex-Algo) | R31(PE), R2(PE), R3(P), R4(P), R5(ASBR), R6(ASBR), R7(RR), R8(RR) |
 | **65200** | OSPF Area 0 | **LDP/MPLS** (legacy — LDP-to-SR migration domain) | R11(P), R12(ASBR), R13(P), R14(PE), R15(PE), R16(PE), R19(RR) |
 | **65300** | IS-IS L2 | **SRv6** (uSID locators, SRv6 L3VPN) | R20(ASBR/PE), R21(ASBR/PE), R22(PE), R23(PE), R30(RR+PCE) |
 
@@ -35,7 +35,7 @@ Identical topology to the Dynamips labs. Same 3 autonomous systems, same roles, 
 ### 0.3 Loopback0 convention
 
 `150.<AS-last-digit>.<R#>.<R#>/32`:
-- AS65100 → `150.1.X.X/32` (R1=150.1.1.1, R8=150.1.8.8)
+- AS65100 → `150.1.X.X/32` (R1=150.1.31.31, R8=150.1.8.8)
 - AS65200 → `150.2.X.X/32` (R11=150.2.11.11, R19=150.2.19.19)
 - AS65300 → `150.3.X.X/32` (R20=150.3.20.20, R30=150.3.30.30)
 
@@ -54,13 +54,13 @@ Identical topology to the Dynamips labs. Same 3 autonomous systems, same roles, 
 |---|---|
 | SRGB (SR-MPLS, AS65100) | **default** 16000–23999 |
 | SRLB (per node, AS65100) | **25000–26000** |
-| Prefix-SID index | = **last octet of Loopback0** (R1→1, R5→5, R8→8) |
+| Prefix-SID index | = **last octet of Loopback0** (R31→1, R5→5, R8→8) |
 | Anycast SID (R1 + R2) | Loopback99, **SID 99**, **n-flag-clear** |
 | SRv6 locator block (AS65300) | **`FC00:0300:00XX::/48`** per router, **F3216** C-SID (uSID) format (X = router number) |
 | SRv6 locator tag | **200** |
 | Flex-Algo (AS65100) | **Algo 233** (exclude red affinity), **Algo 234** (exclude blue affinity) |
-| SR-TE binding-SID (R1→R5) | **24333** |
-| Color communities | **333** (SR-TE autosteer R5→R1), **30** (SR-ODN Platinum/latency, R22 Blue) |
+| SR-TE binding-SID (R31→R5) | **24333** |
+| Color communities | **333** (SR-TE autosteer R5→R31), **30** (SR-ODN Platinum/latency, R22 Blue) |
 | EVPN-VPWS EVI | **400** (Red, R14↔R16, AC 12) |
 | AToM/VPWS VC-ID | **100** (Red, R14↔R16, VLAN100) |
 | mVPN default MDT | **239.232.0.1**, data MDT range **239.232.100.0/24**, SSM core **239.232.0.0/16** |
@@ -128,7 +128,7 @@ Overlay **SR-MPLS** on the AS65100 IS-IS domain (R1–R8):
 1. **SRGB** = platform **default (16000–23999)** on all 8 routers.
 2. **SRLB** = **25000–26000** on all 8 routers.
 3. **Prefix-SID index** = **last octet of Loopback0** (R1 index 1 → label 16001, R5 index 5 → 16005, R8 index 8 → 16008, etc.). Advertise the prefix-SID on each Loopback0 under IS-IS.
-4. **Anycast SID** on **R1 and R2**: both advertise a shared **Loopback99** with prefix-SID **index 99**, **`n-flag-clear`** (not a node-SID). This provides an anycast "nearest-of-R1/R2" entry point.
+4. **Anycast SID** on **R31 and R2**: both advertise a shared **Loopback99** with prefix-SID **index 99**, **`n-flag-clear`** (not a node-SID). This provides an anycast "nearest-of-R31/R2" entry point.
 5. **TI-LFA** FRR enabled on **all** IS-IS interfaces on R1–R8 (`fast-reroute per-prefix ti-lfa`).
 6. **Microloop avoidance** enabled under IS-IS on all 8 routers.
 
@@ -154,7 +154,7 @@ Create an **SR-TE policy** from **R1 to R5** in AS65100:
 1. **Dynamic** candidate path optimized on the **TE metric**.
 2. **Binding-SID = 24333**.
 3. **Autoroute include** for **R5's Loopback100** so IGP shortest-path traffic to that prefix rides the policy.
-4. Advertise from **R5 to R1** a service/loopback prefix tagged with **color community 333**, and enable **BGP autosteering (color)** on R1 so color-333 routes resolve onto the R1→R5 SR policy automatically.
+4. Advertise from **R5 to R1** a service/loopback prefix tagged with **color community 333**, and enable **BGP autosteering (color)** on R31 so color-333 routes resolve onto the R31→R5 SR policy automatically.
 
 Verify: `show segment-routing traffic-eng policy name <...>`, `show segment-routing traffic-eng policy binding-sid 24333`, `show bgp ipv4 unicast <R5-Lo100>` (color ext-comm 333), `show route <R5-Lo100>` (resolved via binding-SID / policy).
 
@@ -173,8 +173,8 @@ Verify: `show segment-routing traffic-eng policy color 30`, `show pce ipv4 peer`
 Define two **IGP Flex-Algos** in AS65100 between **R1 and R5**:
 1. **Flex-Algo 233** — exclude links colored with the **red** affinity (`affinity exclude-any red`).
 2. **Flex-Algo 234** — exclude links colored with the **blue** affinity (`affinity exclude-any blue`).
-3. Assign the **red** and **blue** affinity colors to the appropriate core links (define affinity bit-maps and apply to interfaces so each algo has a distinct constrained path R1↔R5).
-4. Advertise **per-algo prefix-SIDs** on R1 and R5 Loopback0 for algo 233 and algo 234 (distinct SID per algorithm).
+3. Assign the **red** and **blue** affinity colors to the appropriate core links (define affinity bit-maps and apply to interfaces so each algo has a distinct constrained path R31↔R5).
+4. Advertise **per-algo prefix-SIDs** on R31 and R5 Loopback0 for algo 233 and algo 234 (distinct SID per algorithm).
 5. Create **SR policies from R1 to R5 constrained to flex-algo 233 and to flex-algo 234** respectively (constraint `segment-list` / dynamic with `constraints algorithm 233` / `234`).
 
 Verify: `show isis flex-algo`, `show segment-routing traffic-eng policy` (per-algo), `show isis database verbose` (FAD / per-algo prefix-SID), `show route <R5-Lo0> algorithm 233`.

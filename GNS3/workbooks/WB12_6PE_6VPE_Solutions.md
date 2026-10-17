@@ -10,21 +10,21 @@
 
 ## Section 1 — 6PE (Global IPv6 over IPv4 MPLS)
 
-**Concept:** PEs R1/R2 exchange IPv6 prefixes over the existing IPv4 iBGP sessions to RRs R7/R8. The IPv6 next-hop is encoded as an IPv4-mapped address (`::FFFF:a.b.c.d`) so the receiving PE resolves it over the IPv4 LSP. `send-label` binds an MPLS label to each IPv6 prefix. P routers never see IPv6.
+**Concept:** PEs R31/R2 exchange IPv6 prefixes over the existing IPv4 iBGP sessions to RRs R7/R8. The IPv6 next-hop is encoded as an IPv4-mapped address (`::FFFF:a.b.c.d`) so the receiving PE resolves it over the IPv4 LSP. `send-label` binds an MPLS label to each IPv6 prefix. P routers never see IPv6.
 
-### 1.1 Enable IPv6 forwarding on PEs only (R1, R2)
+### 1.1 Enable IPv6 forwarding on PEs only (R31, R2)
 
 ```
-! R1 and R2 — identical
+! R31 and R2 — identical
 ipv6 unicast-routing
 ipv6 cef
 ```
 
 > Do **NOT** add `ipv6 unicast-routing` on R3/R4/R7/R8 forwarding path. R7/R8 only need the BGP IPv6 AF activated for reflection (control-plane), not IPv6 CEF.
 
-### 1.2 IPv6 PE-CE addressing (global) — R1↔R9
+### 1.2 IPv6 PE-CE addressing (global) — R31↔R9
 
-Link R1 g1/0 ↔ R9 g1/0 (`192.168.1.0/24`). Add IPv6 `2001:db8:1:19::/64`.
+Link R31 f4/0 ↔ R9 g1/0 (`192.168.1.0/24`). Add IPv6 `2001:db8:1:19::/64`.
 
 ```
 ! R1
@@ -99,12 +99,12 @@ router bgp 65100
 ### 1.5 RRs R7/R8 — reflect IPv6 unicast with labels
 
 ```
-! R7 and R8 — identical (clients R1 and R2)
+! R7 and R8 — identical (clients R31 and R2)
 router bgp 65100
  address-family ipv6 unicast
-  neighbor 150.1.1.1 activate
-  neighbor 150.1.1.1 send-label
-  neighbor 150.1.1.1 route-reflector-client
+  neighbor 150.1.31.31 activate
+  neighbor 150.1.31.31 send-label
+  neighbor 150.1.31.31 route-reflector-client
   neighbor 150.1.2.2 activate
   neighbor 150.1.2.2 send-label
   neighbor 150.1.2.2 route-reflector-client
@@ -112,21 +112,21 @@ router bgp 65100
 !
 ```
 
-> RRs reflect the IPv6 prefix **without rewriting the next-hop**. The next-hop stays the IPv4-mapped address of the originating PE (`::FFFF:150.1.1.1`), which the receiving PE resolves over the IPv4 LDP LSP.
+> RRs reflect the IPv6 prefix **without rewriting the next-hop**. The next-hop stays the IPv4-mapped address of the originating PE (`::FFFF:150.1.31.31`), which the receiving PE resolves over the IPv4 LDP LSP.
 
 ### 1.6 IPv4-mapped next-hop
 
-6PE automatically encodes the next-hop as `::FFFF:<BGP-router-id/update-source>`. Because the PE↔RR session is IPv4 and sourced from Loopback0, R1 advertises next-hop `::FFFF:150.1.1.1`. No extra config is required for IOS classic; just ensure the IPv6 AF neighbor uses the IPv4 session (update-source Loopback0 already set in WB04).
+6PE automatically encodes the next-hop as `::FFFF:<BGP-router-id/update-source>`. Because the PE↔RR session is IPv4 and sourced from Loopback0, R1 advertises next-hop `::FFFF:150.1.31.31`. No extra config is required for IOS classic; just ensure the IPv6 AF neighbor uses the IPv4 session (update-source Loopback0 already set in WB04).
 
-> If the next-hop ever shows a link-local or non-mapped value, apply `neighbor X next-hop-self` under the IPv6 AF on the PE, or `route-map SET-V4MAP out` setting `ipv6 next-hop ::FFFF:150.1.1.1`.
+> If the next-hop ever shows a link-local or non-mapped value, apply `neighbor X next-hop-self` under the IPv6 AF on the PE, or `route-map SET-V4MAP out` setting `ipv6 next-hop ::FFFF:150.1.31.31`.
 
 ### Section 1 Verification
 
 ```
-! R1/R2
+! R31/R2
 show bgp ipv6 unicast summary                 ! RRs Up, prefixes exchanged
 show bgp ipv6 unicast                          ! R9 loopback present
-show bgp ipv6 unicast 2001:db8:9::9/128        ! next-hop ::FFFF:150.1.1.1, in/out label set
+show bgp ipv6 unicast 2001:db8:9::9/128        ! next-hop ::FFFF:150.1.31.31, in/out label set
 show mpls forwarding-table                     ! IPv6 FEC with local label on R1
 ! R3/R4 (core)
 show ipv6 route                                ! EMPTY — core is IPv4-only
@@ -163,9 +163,9 @@ vrf definition BLUE
 
 > `vrf definition` (not `ip vrf`) is required for a dual-stack VRF with IPv6 AF. If WB05 used legacy `ip vrf BLUE`, migrate it with `vrf upgrade-cli multi-af-mode common-policies vrf BLUE` or redefine as above.
 
-### 2.2 IPv6 PE-CE inside VRF BLUE — R1↔R32
+### 2.2 IPv6 PE-CE inside VRF BLUE — R31↔R32
 
-Link R1 f4/1 ↔ R32 f0/0 (`192.168.3.0/24`). Add VRF IPv6 `2001:db8:1:332::/64`.
+Link R31 g1/0 ↔ R32 f0/0 (`192.168.3.0/24`). Add VRF IPv6 `2001:db8:1:332::/64`.
 
 ```
 ! R1
@@ -205,7 +205,7 @@ router bgp 65025
 ### 2.3 Activate VPNv6 on PE↔RR sessions
 
 ```
-! R1 and R2 (PEs)
+! R31 and R2 (PEs)
 router bgp 65100
  address-family vpnv6 unicast
   neighbor 150.1.7.7 activate
@@ -220,9 +220,9 @@ router bgp 65100
 ! R7 and R8 (RRs)
 router bgp 65100
  address-family vpnv6 unicast
-  neighbor 150.1.1.1 activate
-  neighbor 150.1.1.1 send-community extended
-  neighbor 150.1.1.1 route-reflector-client
+  neighbor 150.1.31.31 activate
+  neighbor 150.1.31.31 send-community extended
+  neighbor 150.1.31.31 route-reflector-client
   neighbor 150.1.2.2 activate
   neighbor 150.1.2.2 send-community extended
   neighbor 150.1.2.2 route-reflector-client
@@ -242,7 +242,7 @@ show bgp vpnv6 unicast all                      ! 2001:db8:32::32/128 under RD 6
 show bgp vpnv6 unicast vrf BLUE                  ! local + any remote BLUE IPv6 prefixes
 ```
 
-> Per the Blue 3-AS design, the remote endpoint (R25 in AS65200/65300) imports this via inter-AS VPNv6. Locally on R1, confirm the prefix carries a VPN label and next-hop `::FFFF:150.1.1.1`.
+> Per the Blue 3-AS design, the remote endpoint (R25 in AS65200/65300) imports this via inter-AS VPNv6. Locally on R31, confirm the prefix carries a VPN label and next-hop `::FFFF:150.1.31.31`.
 
 ### Section 2 Verification
 

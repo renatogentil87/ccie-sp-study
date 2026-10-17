@@ -11,7 +11,7 @@
 
 ### 1A. IS-IS Multi-Level — AS 65100 (R1–R8)
 
-**Design:** Area 49.0001 → backbone (R3,R4,R5,R6,R7,R8), Area 49.0011 → L1 edge (R1,R2). R3/R4 are L1/L2 borders. R1↔R3 and R2↔R4 are the only L1 circuits; all other AS65100 core links are L2-only.
+**Design:** Area 49.0001 → backbone (R3,R4,R5,R6,R7,R8), Area 49.0011 → L1 edge (R1,R2). R3/R4 are L1/L2 borders. R31↔R3 and R2↔R4 are the only L1 circuits; all other AS65100 core links are L2-only.
 
 #### R1 (L1 edge PE)
 
@@ -248,20 +248,20 @@ router isis CORE
  redistribute isis ip level-2 into level-1 route-map LEAK-L2-TO-L1
 ```
 
-> `redistribute isis ip level-2 into level-1 route-map ...` is the IOS classic command for inter-level IS-IS route leaking (distinct from `redistribute isis` which would be for redistributing a *different* IS-IS process/other protocol). The route-map's prefix-list restricts the leak to only R20's and R30's loopbacks — not the whole L2 table. The `set tag 65300` makes the leaked routes auditable in `show isis database` / `show ip route` (tag column) as "these came from AS65300 via leaking," satisfying the "tagged route leaking" requirement. Only R3 needs this since both R1 and R2 sit behind R3/R4 in the same L1 area and R3 is the one chosen to leak (R4 could optionally mirror this for redundancy, but the task only requires it be leaked into the area, which either border router achieves).
+> `redistribute isis ip level-2 into level-1 route-map ...` is the IOS classic command for inter-level IS-IS route leaking (distinct from `redistribute isis` which would be for redistributing a *different* IS-IS process/other protocol). The route-map's prefix-list restricts the leak to only R20's and R30's loopbacks — not the whole L2 table. The `set tag 65300` makes the leaked routes auditable in `show isis database` / `show ip route` (tag column) as "these came from AS65300 via leaking," satisfying the "tagged route leaking" requirement. Only R3 needs this since both R31 and R2 sit behind R3/R4 in the same L1 area and R3 is the one chosen to leak (R4 could optionally mirror this for redundancy, but the task only requires it be leaked into the area, which either border router achieves).
 
 #### Verification
 
 ```
 show isis topology
 show ip route isis
-show isis database level-1 detail      ! on R1/R2 — confirm ATT bit set, only area + 2 leaked /32s + default
+show isis database level-1 detail      ! on R31/R2 — confirm ATT bit set, only area + 2 leaked /32s + default
 show isis database level-2 detail      ! on R3-R8 — confirm all 8 backbone systems
 show clns neighbors
 ping 150.3.20.20 source Loopback0       ! from R1 — confirms leaked route + default both work for reachability
 ```
 
-Expected: R1/R2 `show ip route` shows `i*L1` default (0.0.0.0/0) plus two `i L1` /32 routes tagged 65300 for R20/R30. R3–R8 `show isis database level-2` lists all 8 AS65100 systems plus leaked-in visibility of the L1 prefixes from the area.
+Expected: R31/R2 `show ip route` shows `i*L1` default (0.0.0.0/0) plus two `i L1` /32 routes tagged 65300 for R20/R30. R3–R8 `show isis database level-2` lists all 8 AS65100 systems plus leaked-in visibility of the L1 prefixes from the area.
 
 **Snapshot:** `LAB2-sec1a-isis-ml-as65100`
 
@@ -469,7 +469,7 @@ interface GigabitEthernet1/0
 !
 ```
 
-> Per the note in R20 above, if R20↔R22 (g2/0 on both ends) is physically wired per the Core link table, it must still be L2-only on R22's side — but since R20 is pure L1 it cannot form an L2 adjacency over that link. Treat R20↔R22 as a backup/unused-for-IGP physical link in this design, or exclude it from `ip router isis` entirely on R20 (only R20↔R21 carries IS-IS). This mirrors the AS65100 pattern where R1/R2 also only run IS-IS on their single border-reachable path.
+> Per the note in R20 above, if R20↔R22 (g2/0 on both ends) is physically wired per the Core link table, it must still be L2-only on R22's side — but since R20 is pure L1 it cannot form an L2 adjacency over that link. Treat R20↔R22 as a backup/unused-for-IGP physical link in this design, or exclude it from `ip router isis` entirely on R20 (only R20↔R21 carries IS-IS). This mirrors the AS65100 pattern where R31/R2 also only run IS-IS on their single border-reachable path.
 
 #### R23 (L2-only, PE)
 
@@ -558,9 +558,9 @@ interface FastEthernet3/0
 
 | Router | LDP-enabled interfaces |
 |---|---|
-| R1 | f0/0 (→R3), f4/0 (→R2) |
-| R2 | f0/0 (→R4), f3/0 (→R1) |
-| R3 | f0/0 (→R1), g1/0 (→R4), g2/0 (→R5), f3/0 (→R7) |
+| R31 | f0/0 (→R3), f4/0 (→R2) |
+| R2 | f0/0 (→R4), f3/0 (→R31) |
+| R3 | f0/0 (→R31), g1/0 (→R4), g2/0 (→R5), f3/0 (→R7) |
 | R4 | f0/0 (→R2), g1/0 (→R3), g2/0 (→R6) |
 | R5 | f0/0 (→R8), g2/0 (→R3), f3/0 (→R6) |
 | R6 | g2/0 (→R4), f3/0 (→R5) |
@@ -587,7 +587,7 @@ interface FastEthernet3/0
 show mpls ldp neighbor                ! Operational, per AS
 show mpls ldp discovery
 show mpls forwarding-table            ! label for every /32 Loopback0
-show mpls forwarding-table 150.1.1.1 detail     ! trace R1's label across R3/R4 L1/L2 boundary
+show mpls forwarding-table 150.1.31.31 detail     ! trace R1's label across R3/R4 L1/L2 boundary
 show mpls forwarding-table 150.3.20.20 detail   ! trace R20's label across R21's L1/L2 boundary
 ```
 
@@ -605,8 +605,8 @@ Expected: at R3 and R4 (AS65100 border) and R21 (AS65300 border), the LFIB shows
 router bgp 65100
  bgp router-id 150.1.7.7
  no bgp default ipv4-unicast
- neighbor 150.1.1.1 remote-as 65100
- neighbor 150.1.1.1 update-source Loopback0
+ neighbor 150.1.31.31 remote-as 65100
+ neighbor 150.1.31.31 update-source Loopback0
  neighbor 150.1.2.2 remote-as 65100
  neighbor 150.1.2.2 update-source Loopback0
  neighbor 150.1.3.3 remote-as 65100
@@ -621,8 +621,8 @@ router bgp 65100
  neighbor 150.1.8.8 update-source Loopback0
  !
  address-family ipv4
-  neighbor 150.1.1.1 activate
-  neighbor 150.1.1.1 route-reflector-client
+  neighbor 150.1.31.31 activate
+  neighbor 150.1.31.31 route-reflector-client
   neighbor 150.1.2.2 activate
   neighbor 150.1.2.2 route-reflector-client
   neighbor 150.1.3.3 activate
@@ -637,8 +637,8 @@ router bgp 65100
  exit-address-family
  !
  address-family vpnv4
-  neighbor 150.1.1.1 activate
-  neighbor 150.1.1.1 route-reflector-client
+  neighbor 150.1.31.31 activate
+  neighbor 150.1.31.31 route-reflector-client
   neighbor 150.1.2.2 activate
   neighbor 150.1.2.2 route-reflector-client
   neighbor 150.1.3.3 activate
@@ -832,7 +832,7 @@ router bgp 65100
 
 Verify failover:
 ```
-show ip bgp 150.2.14.14          ! on R1 — Weight column, best path via R5 (next-hop reflects R5's path)
+show ip bgp 150.2.14.14          ! on R31 — Weight column, best path via R5 (next-hop reflects R5's path)
 shutdown                          ! R5's g1/0 to R11 (test)
 show ip bgp 150.2.14.14          ! confirm reconvergence via R6 (weight 100 path now best, since R5's path withdrawn)
 no shutdown                       ! restore R5-R11
@@ -881,7 +881,7 @@ route-map TAG-ORIGIN-65100 permit 10
  set community 65100:1100 additive
 !
 router bgp 65100
- network 150.1.1.1 mask 255.255.255.255
+ network 150.1.31.31 mask 255.255.255.255
  address-family ipv4
   neighbor 150.1.7.7 route-map TAG-ORIGIN-65100 out
  exit-address-family
@@ -909,7 +909,7 @@ router bgp 65100
 Verify at a remote ASBR:
 ```
 show ip bgp community 65100:1100
-show ip bgp 150.1.1.1    ! on R21 (AS65300) — confirm community 65100:1100 visible end-to-end
+show ip bgp 150.1.31.31    ! on R21 (AS65300) — confirm community 65100:1100 visible end-to-end
 ```
 
 #### Task 5.6 — BGP-LU, direct ASBR-to-ASBR (AS65100 ↔ AS65300 via R6↔R20)
@@ -966,7 +966,7 @@ mpls bgp forwarding
 Verify:
 ```
 show bgp ipv4 unicast labels              ! on R6 and R20 — confirms a BGP label assigned to each /32
-show mpls forwarding-table 150.3.22.22    ! on R1 — label-only path reaches R22's loopback, no plain-IP hop
+show mpls forwarding-table 150.3.22.22    ! on R31 — label-only path reaches R22's loopback, no plain-IP hop
 traceroute mpls ipv4 150.3.22.22/32       ! LSP ping/trace confirms pure label switching end-to-end
 ```
 
@@ -978,7 +978,7 @@ traceroute mpls ipv4 150.3.22.22/32       ! LSP ping/trace confirms pure label s
 
 ### Task 2.1 — VRF/RD/RT plan
 
-| Customer | VRF | RD (R1/R2/R15/R16/R20/R22/R14/R21/R23) | RT |
+| Customer | VRF | RD (R31/R2/R15/R16/R20/R22/R14/R21/R23) | RT |
 |---|---|---|---|
 | Green | `GREEN` | `1:910` (R1), `2:910` (R2), `15:910` (R15) | `65910:910` both |
 | Yellow | `YELLOW` | `16:24` (R16), `20:24` (R20), `22:24` (R22) | `65024:24` both |
@@ -1029,7 +1029,7 @@ ip vrf BLUE
  route-target import 65025:25
 ```
 
-### Task 2.2 — Green VRF + eBGP PE-CE legs (R1↔R9, R1↔R10, R2↔R10)
+### Task 2.2 — Green VRF + eBGP PE-CE legs (R31↔R9, R31↔R10, R2↔R10)
 
 **R1:**
 ```
@@ -1086,7 +1086,7 @@ router bgp 65910
  exit-address-family
 ```
 
-**R10 (CE, dual-homed to R1 and R2):**
+**R10 (CE, dual-homed to R31 and R2):**
 ```
 router bgp 65910
  neighbor 192.168.2.1 remote-as 65100
@@ -1098,7 +1098,7 @@ router bgp 65910
  exit-address-family
 ```
 
-**VPNv4 exchange R1↔R2 (via AS65100 RRs — add to existing R1/R2 iBGP from Section 1E):**
+**VPNv4 exchange R31↔R2 (via AS65100 RRs — add to existing R31/R2 iBGP from Section 1E):**
 ```
 router bgp 65100
  address-family vpnv4
@@ -1136,12 +1136,12 @@ router bgp 65200
 ip route 0.0.0.0 0.0.0.0 192.168.6.15
 ```
 
-> `redistribute static` under the VRF address-family is what pushes `ip route vrf GREEN ...` into VPNv4 so AS65100's Green PEs (R1, R2) learn 150.17.17.17/32. The route arrives at R1/R2 tagged with origin code `?` (redistributed/static), distinguishable from the eBGP-learned (`i`/`e`) Green routes.
+> `redistribute static` under the VRF address-family is what pushes `ip route vrf GREEN ...` into VPNv4 so AS65100's Green PEs (R31, R2) learn 150.17.17.17/32. The route arrives at R31/R2 tagged with origin code `?` (redistributed/static), distinguishable from the eBGP-learned (`i`/`e`) Green routes.
 
 Verify:
 ```
 show ip bgp vpnv4 vrf GREEN 150.17.17.17    ! on R15 — confirm "redistributed" / static origin, not OSPF
-ping vrf GREEN 150.17.17.17 source Loopback0  ! on R1/R2
+ping vrf GREEN 150.17.17.17 source Loopback0  ! on R31/R2
 ```
 
 ### Task 2.4 — Yellow VRF (R16↔R26, R20↔R24, R22↔R24)
@@ -1380,7 +1380,7 @@ Blue reachability from R32 → R25: R25 is reachable via **both** AS65200 (R14) 
 ```
 l2 vfi RED-NORTH manual
  vpn id 65100:9100
- neighbor 150.1.1.1 encapsulation mpls
+ neighbor 150.1.31.31 encapsulation mpls
 !
 interface FastEthernet3/0
  description to-R27 (Red CE, VLAN 100)
@@ -1488,7 +1488,7 @@ interface GigabitEthernet2/0
 
 Verify:
 ```
-show policy-map interface GigabitEthernet1/0   ! on R1 — conform/exceed/violate byte & packet counts per class
+show policy-map interface GigabitEthernet1/0   ! on R31 — conform/exceed/violate byte & packet counts per class
 ```
 
 > **Ingress policing vs. egress shaping (document in notes):** Policing (used here) is a stateless, bufferless meter — it conforms or drops/marks instantly at the moment a packet arrives, with zero added latency and zero burst absorption capability (an exceeding burst is dropped/remarked immediately, not delayed). Shaping (LAB1, egress) buffers excess traffic in a queue and releases it later to smooth bursts down to the configured rate, trading added latency/jitter for the ability to **absorb** short bursts without loss, as long as the queue doesn't overflow. Policing at ingress is cheaper (no buffer memory, simpler hardware path) and protects the **network's own resources** immediately at the point of entry; shaping at egress is used to **conform to a downstream commitment** (e.g., not exceeding what a slower access-circuit can carry) while still being burst-tolerant for the customer's traffic.
@@ -1496,11 +1496,11 @@ show policy-map interface GigabitEthernet1/0   ! on R1 — conform/exceed/violat
 ### Task 2.8 — Verify Section 2 end-to-end
 
 ```
-ping vrf GREEN 150.10.10.10 source Loopback0     ! R9 → R10 (via R1/R2, both Green PEs)
+ping vrf GREEN 150.10.10.10 source Loopback0     ! R9 → R10 (via R31/R2, both Green PEs)
 ping vrf GREEN 150.17.17.17 source Loopback0     ! R9 → R17 (via R15's static PE-CE leg)
 ping vrf YELLOW 150.26.26.26 source Loopback0     ! R24 → R26
 ping vrf BLUE 150.25.25.25 source Loopback0       ! R32 → R25
-show ip route vrf GREEN                            ! on R1 — confirm no YELLOW/BLUE prefixes leaked in
+show ip route vrf GREEN                            ! on R31 — confirm no YELLOW/BLUE prefixes leaked in
 show ip route vrf YELLOW                           ! on R16 — confirm no GREEN/BLUE prefixes leaked in
 show ip route vrf BLUE                             ! on R14 — confirm no GREEN/YELLOW prefixes leaked in
 ```
@@ -1515,7 +1515,7 @@ Expected: each VRF's routing table contains only its own customer's prefixes plu
 
 ### Task 3.1 — mVPN Profile 3 (BGP MDT + BGP C-Multicast Signaling) for Green
 
-#### 3.1.1 — BGP-based MDT AF on R1, R2, R15
+#### 3.1.1 — BGP-based MDT AF on R31, R2, R15
 
 ```
 router bgp 65100
@@ -1527,7 +1527,7 @@ router bgp 65100
 
 > On R15 (AS65200), the equivalent is added under `router bgp 65200` peering to R19 (the RR). The `ipv4 mdt` AF (RFC 6037) signals **which PEs are members of which VRF's MDT group** via BGP UPDATE messages carrying MDT NLRI (RD + PE-loopback + MDT group address), replacing PIM-based MDT discovery entirely.
 
-#### 3.1.2 — VRF-level MDT binding (default + data) on R1, R2, R15
+#### 3.1.2 — VRF-level MDT binding (default + data) on R31, R2, R15
 
 ```
 ip vrf GREEN
@@ -1540,7 +1540,7 @@ ip vrf GREEN
 
 > `mdt default 232.0.0.1` — the BGP-signaled default MDT group for VRF GREEN (an SSM/PIM-SSM-range group used purely as the data-plane GRE tunnel source/dest, now joined to via BGP MDT NLRI rather than PIM Auto-RP/static-RP + native PIM join in the P-network). `mdt data 232.0.1.0 0.0.0.255 threshold 1` — the data-MDT group range used for higher-bandwidth flows that exceed the threshold (1 kbps here for lab testing — set low so even a trivial test stream triggers data-MDT switchover). Because MDT membership is BGP-signaled, the P-network core routers (R3, R4, R5, etc.) need **no PIM configuration at all** for MDT discovery — contrast directly with Profile 0, where the core must run PIM-SM (or PIM-SSM) so P routers can process native MDT-group PIM joins.
 
-#### 3.1.3 — BGP C-multicast signaling (ipv4 mvpn AF) between R1, R2, R15
+#### 3.1.3 — BGP C-multicast signaling (ipv4 mvpn AF) between R31, R2, R15
 
 ```
 router bgp 65100
@@ -1556,7 +1556,7 @@ router bgp 65100
 
 #### 3.1.4 — Source/receiver test (R9 source, R17 receiver, VRF GREEN)
 
-**R1 (PE enabling PIM in the VRF, SSM-aware for the customer multicast domain):**
+**R31 (PE enabling PIM in the VRF, SSM-aware for the customer multicast domain):**
 ```
 ip multicast-routing vrf GREEN
 !
@@ -1752,7 +1752,7 @@ router isis CORE
  mpls traffic-eng router-id Loopback0
 ```
 
-> Apply the `router isis` two lines on every AS65100 router that participates in TE (R1,R3,R5,R8 for Tunnel A; R2,R4,R6,R5,R8,R7 for Tunnel B — in practice, enable on all 8 for simplicity since TE-extended IS-IS has no downside on non-participating routers). `mpls traffic-eng level-2` floods TE link-state (bandwidth, affinity, SRLG) into the L2 IS-IS database — since R1/R2 are L1-only, their flooding scope is naturally limited to level-1, but the explicit paths below only transit L2 routers after the first hop, so this is consistent with the multi-level design from Section 1.
+> Apply the `router isis` two lines on every AS65100 router that participates in TE (R1,R3,R5,R8 for Tunnel A; R2,R4,R6,R5,R8,R7 for Tunnel B — in practice, enable on all 8 for simplicity since TE-extended IS-IS has no downside on non-participating routers). `mpls traffic-eng level-2` floods TE link-state (bandwidth, affinity, SRLG) into the L2 IS-IS database — since R31/R2 are L1-only, their flooding scope is naturally limited to level-1, but the explicit paths below only transit L2 routers after the first hop, so this is consistent with the multi-level design from Section 1.
 
 **Per-interface, on every AS65100 core link:**
 ```
@@ -1763,7 +1763,7 @@ interface FastEthernet0/0
 
 (repeat on every core-facing interface of R1–R8, matching the same interface list used for LDP in Section 1D).
 
-#### 4.1.2 — Tunnel A: R1→R3→R5→R8
+#### 4.1.2 — Tunnel A: R31→R3→R5→R8
 
 **R1:**
 ```
@@ -1807,7 +1807,7 @@ interface Tunnel2
 
 ```
 show mpls traffic-eng tunnels brief
-show mpls traffic-eng tunnels tunnel 1       ! on R1 — confirm signaled path == explicit path requested, no CSPF substitution
+show mpls traffic-eng tunnels tunnel 1       ! on R31 — confirm signaled path == explicit path requested, no CSPF substitution
 show mpls traffic-eng tunnels tunnel 2       ! on R2
 show ip rsvp reservation
 ```
@@ -1851,11 +1851,11 @@ interface FastEthernet0/0
  mpls traffic-eng backup-path Tunnel10
 ```
 
-> `mpls traffic-eng backup-path Tunnel10` on R1's **f0/0** (the R1→R3 interface, i.e., the protected segment's head-end interface) tells R1's FRR logic to use Tunnel10 as the backup for traffic riding Tunnel1 across that interface. Because Tunnel10 terminates at R5 (two hops downstream, bypassing R3 entirely) rather than at R3 (one hop, which would only be NHOP/link protection), IOS classifies and reports this backup as **NNHOP** in the FRR database.
+> `mpls traffic-eng backup-path Tunnel10` on R1's **f0/0** (the R31→R3 interface, i.e., the protected segment's head-end interface) tells R1's FRR logic to use Tunnel10 as the backup for traffic riding Tunnel1 across that interface. Because Tunnel10 terminates at R5 (two hops downstream, bypassing R3 entirely) rather than at R3 (one hop, which would only be NHOP/link protection), IOS classifies and reports this backup as **NNHOP** in the FRR database.
 
 Verify:
 ```
-show mpls traffic-eng fast-reroute database     ! on R1 — Tunnel1's backup shown as "NNHOP", backup tunnel = Tunnel10
+show mpls traffic-eng fast-reroute database     ! on R31 — Tunnel1's backup shown as "NNHOP", backup tunnel = Tunnel10
 show mpls traffic-eng tunnels tunnel 1           ! "Fast Reroute Protection: Enabled, type: NNHOP"
 ```
 
@@ -1877,14 +1877,14 @@ interface FastEthernet3/0
 (shutting down all of R3's interfaces simulates a full node failure without physically removing R3 from the GNS3 topology)
 
 ```
-show mpls traffic-eng tunnels tunnel 1          ! on R1 — confirm Tunnel1 remained Up, now riding Tunnel10's path
+show mpls traffic-eng tunnels tunnel 1          ! on R31 — confirm Tunnel1 remained Up, now riding Tunnel10's path
 show ip rsvp reservation                         ! confirm reservation shifted to the bypass hops
 ```
 
 Restore R3 and confirm primary path is reused:
 ```
 ! On R3: no shutdown on all 4 interfaces
-show mpls traffic-eng tunnels tunnel 1          ! on R1 — path reverts to primary PATH-A (R1-R3-R5-R8) once R3/RSVP re-establishes
+show mpls traffic-eng tunnels tunnel 1          ! on R31 — path reverts to primary PATH-A (R1-R3-R5-R8) once R3/RSVP re-establishes
 ```
 
 ### Task 4.3 — VPN traffic over TE + verify HA
@@ -1896,7 +1896,7 @@ interface Tunnel1
  tunnel mpls traffic-eng autoroute announce
 ```
 
-> **Autoroute announce** (rather than static CBTS/forwarding-adjacency) is chosen because Tunnel1 (R1→R8) doesn't terminate at a VPN-relevant endpoint by itself in the strict sense — but since autoroute announce makes R1's IGP (IS-IS) treat Tunnel1 as a shorter/preferred path for anything whose IGP next-hop would otherwise transit the R1→R3 physical link, any Green VPNv4-resolved recursive route whose BGP next-hop recurses through that same core path automatically prefers the tunnel. This is simpler than CBTS (`mpls traffic-eng forwarding-adjacency`, which would advertise the tunnel as an IGP link, adding more IS-IS state) for a lab exercise where the goal is "force traffic onto the tunnel," not "advertise the tunnel as a reusable transit link for other routers."
+> **Autoroute announce** (rather than static CBTS/forwarding-adjacency) is chosen because Tunnel1 (R31→R8) doesn't terminate at a VPN-relevant endpoint by itself in the strict sense — but since autoroute announce makes R1's IGP (IS-IS) treat Tunnel1 as a shorter/preferred path for anything whose IGP next-hop would otherwise transit the R31→R3 physical link, any Green VPNv4-resolved recursive route whose BGP next-hop recurses through that same core path automatically prefers the tunnel. This is simpler than CBTS (`mpls traffic-eng forwarding-adjacency`, which would advertise the tunnel as an IGP link, adding more IS-IS state) for a lab exercise where the goal is "force traffic onto the tunnel," not "advertise the tunnel as a reusable transit link for other routers."
 
 #### 4.3.2 — Verify VPN traffic survives FRR
 
@@ -2019,7 +2019,7 @@ IOS 15.2(4)M11 on the C7200 (Dynamips) platform is a classic IOS image targeting
 
 ### Task 5.3 — RSVP authentication (AS65100 TE links)
 
-#### 5.3.1 — RSVP neighbor authentication (MD5 key) on R1↔R3, R3↔R5, R5↔R8, R2↔R4, R4↔R6, R6↔R5, R5↔R8, R8↔R7
+#### 5.3.1 — RSVP neighbor authentication (MD5 key) on R31↔R3, R3↔R5, R5↔R8, R2↔R4, R4↔R6, R6↔R5, R5↔R8, R8↔R7
 
 ```
 key chain RSVP-KEYS
@@ -2112,7 +2112,7 @@ interface Loopback0
  ipv6 address 2001:DB8:1::1/128      ! R1 — substitute each router's own value from the IPv6 scheme
 ```
 
-Apply the matching Loopback0 IPv6 address (from the topology reference's IPv6 Loopbacks table) and `ipv6 unicast-routing` on R1, R2, R7, R8, and R15. Apply the matching core-link IPv6 addresses on the relevant interfaces per the topology reference's Core Links (IPv6) table (R1↔R3, R1↔R2, R2↔R4, R3↔R7, R5↔R8 etc. as applicable to the 6VPE-participating routers' paths), e.g.:
+Apply the matching Loopback0 IPv6 address (from the topology reference's IPv6 Loopbacks table) and `ipv6 unicast-routing` on R31, R2, R7, R8, and R15. Apply the matching core-link IPv6 addresses on the relevant interfaces per the topology reference's Core Links (IPv6) table (R31↔R3, R31↔R2, R2↔R4, R3↔R7, R5↔R8 etc. as applicable to the 6VPE-participating routers' paths), e.g.:
 
 ```
 ! R1, f0/0 (to R3)
@@ -2126,7 +2126,7 @@ interface FastEthernet0/0
 
 IOS 15.2(4)M11's classic `ip vrf` construct is **IPv4-only** — it has no native dual-AF capability. True dual-stack VRF support (a single VRF carrying both an IPv4 and an IPv6 RD/RT under one named VRF) requires the newer **`vrf definition`** + `address-family ipv4`/`address-family ipv6` model, which IOS 15.2(4)M11 **does** support on the C7200-ADVENTERPRISEK9-M image. This lab therefore migrates VRF `GREEN` from classic `ip vrf` to `vrf definition` to get genuine dual-stack behavior under one VRF name, rather than running a second, separate IPv6-only VRF construct alongside the original `ip vrf GREEN`.
 
-#### 6.2.1 — Migrate GREEN to `vrf definition` with dual AF, on R1, R2, R15
+#### 6.2.1 — Migrate GREEN to `vrf definition` with dual AF, on R31, R2, R15
 
 **R1:**
 ```
@@ -2150,7 +2150,7 @@ interface GigabitEthernet1/0
 
 > Switching an interface from `ip vrf forwarding` to `vrf forwarding` (the `vrf definition`-style command) requires removing and re-applying the interface's IP address, since IOS clears the IP config when the VRF binding changes — re-apply `ip address 192.168.1.1 255.255.255.0` after the `vrf forwarding GREEN` line as shown. R2 and R15 follow the identical pattern with their own RDs (2:910, 15:910) under `vrf definition GREEN`.
 
-#### 6.2.2 — VPNv6 address family in MP-BGP (R1, R2, R15 via R7/R8)
+#### 6.2.2 — VPNv6 address family in MP-BGP (R31, R2, R15 via R7/R8)
 
 **R1 (and mirrored on R2, R15):**
 ```
@@ -2172,17 +2172,17 @@ router bgp 65100
 ```
 router bgp 65100
  address-family vpnv6
-  neighbor 150.1.1.1 activate
-  neighbor 150.1.1.1 route-reflector-client
+  neighbor 150.1.31.31 activate
+  neighbor 150.1.31.31 route-reflector-client
   neighbor 150.1.2.2 activate
   neighbor 150.1.2.2 route-reflector-client
-  neighbor 150.2.15.15 activate              ! only if R7/R8 also reflect to R15 directly; otherwise R15's VPNv6 reaches R1/R2 via R19→(AS65200/AS65100 boundary iBGP-VPNv6, mirroring however VPNv4 already crosses for Green in Section 2) 
+  neighbor 150.2.15.15 activate              ! only if R7/R8 also reflect to R15 directly; otherwise R15's VPNv6 reaches R31/R2 via R19→(AS65200/AS65100 boundary iBGP-VPNv6, mirroring however VPNv4 already crosses for Green in Section 2) 
  exit-address-family
 ```
 
-> R15 is in AS65200, so its VPNv6 session is to **R19** (AS65200's RR), not directly to R7/R8 — R19 needs the matching `address-family vpnv6` activation toward R15, and VPNv6 NLRI for Green crosses between the two ASes the same way VPNv4 Green routes already do (R1/R2's iBGP reaches R15 only via whatever inter-AS VPNv4/VPNv6 exchange mechanism Green already relies on for its single-VRF-spanning-two-ASes design — consistent with Task 2.2's existing Green architecture, no new Inter-AS option is introduced for Green's v6 extension).
+> R15 is in AS65200, so its VPNv6 session is to **R19** (AS65200's RR), not directly to R7/R8 — R19 needs the matching `address-family vpnv6` activation toward R15, and VPNv6 NLRI for Green crosses between the two ASes the same way VPNv4 Green routes already do (R31/R2's iBGP reaches R15 only via whatever inter-AS VPNv4/VPNv6 exchange mechanism Green already relies on for its single-VRF-spanning-two-ASes design — consistent with Task 2.2's existing Green architecture, no new Inter-AS option is introduced for Green's v6 extension).
 
-#### 6.2.3 — IPv6 addressing + eBGP PE-CE on R1↔R9, R1↔R10, R2↔R10
+#### 6.2.3 — IPv6 addressing + eBGP PE-CE on R31↔R9, R31↔R10, R2↔R10
 
 **R1:**
 ```
@@ -2263,7 +2263,7 @@ Expected: the route carries a VPNv6 RD (e.g., `1:910:2001:DB8:9::9/128`) and the
 
 ```
 ping vrf GREEN 2001:DB8:17::17        ! from R9 — assuming R17's IPv6 customer prefix defined in Task 6.3
-show bgp vpnv6 unicast vrf GREEN      ! on R1 — confirm label imposition for the VPNv6 route recursing over the iBGP RR path (2 labels: IGP/LDP + VPNv6 label)
+show bgp vpnv6 unicast vrf GREEN      ! on R31 — confirm label imposition for the VPNv6 route recursing over the iBGP RR path (2 labels: IGP/LDP + VPNv6 label)
 ```
 
 ### Task 6.3 — IPv6 PE-CE on R15↔R17 (new, alongside Section 2's static IPv4)
@@ -2349,10 +2349,10 @@ show bgp vpnv6 unicast vrf GREEN summary ! new VPNv6 Green healthy
 ## Completion Checklist
 
 - [x] **Section 1 (70 pts):** IS-IS multi-level L1/L2 built for AS65100 (R1,R2=L1 in Area 49.0011; R3,R4=L1/L2 border in Area 49.0001; R5-R8=L2-only) and AS65300 (R20=L1 in Area 49.0013; R21=L1/L2 border in Area 49.0003; R22,R23,R30=L2-only), with tagged inter-level route leaking of R20/R30's /32s into Area 49.0011 on R3. OSPF rebuilt with Area 20 totally-stubby (R14, ABR R13) and Area 21 NSSA (R15/R16, ABR R13) with Type-7→Type-5 translation verified. LDP enabled per-interface with pinned router-id across all 3 ASes, verified across both L1/L2 boundaries. BGP WEIGHT (200/100) replacing LOCAL_PREF on R5/R6 individually (with the non-propagation rationale documented), exist-map/non-exist-map conditional advertisement on R6, new 65x00:y100/1199 community scheme verified end-to-end, and BGP-LU built as direct R6↔R20 eBGP-LU plus separate R6→R7/R8 and R20→R21/R30 iBGP-LU sessions.
-- [x] **Section 2 (60 pts):** VRF/RD/RT plan tabulated for GREEN/YELLOW/BLUE; Green eBGP legs on R1/R2; R15↔R17 Green leg converted to static PE-CE with `redistribute static` into VPNv4; YELLOW built on R16/R20/R22; BLUE built with true Inter-AS **Option B** on R5↔R11 (direct eBGP VPNv4 session, next-hop-self driving the ASBR label swap, 2-label stack verified) plus the Option A/B scaling comparison documented; Red VPLS split into **RED-NORTH** (VPN-ID 65100:9100, R16↔R1 VPLS) and **RED-SOUTH** (VPN-ID 65100:9200, built as VPWS given only 2 real sites) with MAC-scoping isolation verified; 3-class **ingress policing** (voice/business/best-effort, single-rate 2-color) applied at R1/R16/R21 PE-CE edges with the ingress-vs-egress-shaping contrast documented.
-- [x] **Section 3 (45 pts):** Green multicast rebuilt on **mVPN Profile 3** — BGP MDT AF (`ipv4 mdt`) + BGP C-multicast signaling (`ipv4 mvpn`) on R1/R2/R15, verified with an R9→R17 (S,G) test and the 3-point Profile 0 vs. 3 comparison documented. Blue **SoO** built around multi-homed R25 (3 legs: R14/AS65200, R21+R23/AS65300) using extended-community `soo 65025:2500`, with the negative-test loop reproduction/fix cycle completed, weight-based R21-primary/R23-backup path control layered on top via a single merged route-map (documenting the one-route-map-per-direction constraint), and the AS_PATH-vs-SoO rationale documented.
-- [x] **Section 4 (40 pts):** Tunnel A (R1→R3→R5→R8) and Tunnel B (R2→R4→R6→R5→R8→R7) built on explicit paths distinct from any single-tunnel LAB1 design, with the one unavoidable shared segment (R5-R8) documented. **Node protection** FRR built for Tunnel A protecting R3, via an NNHOP bypass tunnel (R1→R2→R4→R6→R5) merging back at R5, confirmed as NNHOP (not NHOP) in the FRR database, and verified via a full 4-interface node-shutdown test on R3 with sub-second reroute and clean reversion. Green VPN traffic forced onto Tunnel A via autoroute announce and confirmed to survive the FRR event.
+- [x] **Section 2 (60 pts):** VRF/RD/RT plan tabulated for GREEN/YELLOW/BLUE; Green eBGP legs on R31/R2; R15↔R17 Green leg converted to static PE-CE with `redistribute static` into VPNv4; YELLOW built on R16/R20/R22; BLUE built with true Inter-AS **Option B** on R5↔R11 (direct eBGP VPNv4 session, next-hop-self driving the ASBR label swap, 2-label stack verified) plus the Option A/B scaling comparison documented; Red VPLS split into **RED-NORTH** (VPN-ID 65100:9100, R16↔R1 VPLS) and **RED-SOUTH** (VPN-ID 65100:9200, built as VPWS given only 2 real sites) with MAC-scoping isolation verified; 3-class **ingress policing** (voice/business/best-effort, single-rate 2-color) applied at R1/R16/R21 PE-CE edges with the ingress-vs-egress-shaping contrast documented.
+- [x] **Section 3 (45 pts):** Green multicast rebuilt on **mVPN Profile 3** — BGP MDT AF (`ipv4 mdt`) + BGP C-multicast signaling (`ipv4 mvpn`) on R31/R2/R15, verified with an R9→R17 (S,G) test and the 3-point Profile 0 vs. 3 comparison documented. Blue **SoO** built around multi-homed R25 (3 legs: R14/AS65200, R21+R23/AS65300) using extended-community `soo 65025:2500`, with the negative-test loop reproduction/fix cycle completed, weight-based R21-primary/R23-backup path control layered on top via a single merged route-map (documenting the one-route-map-per-direction constraint), and the AS_PATH-vs-SoO rationale documented.
+- [x] **Section 4 (40 pts):** Tunnel A (R31→R3→R5→R8) and Tunnel B (R2→R4→R6→R5→R8→R7) built on explicit paths distinct from any single-tunnel LAB1 design, with the one unavoidable shared segment (R5-R8) documented. **Node protection** FRR built for Tunnel A protecting R3, via an NNHOP bypass tunnel (R31→R2→R4→R6→R5) merging back at R5, confirmed as NNHOP (not NHOP) in the FRR database, and verified via a full 4-interface node-shutdown test on R3 with sub-second reroute and clean reversion. Green VPN traffic forced onto Tunnel A via autoroute announce and confirmed to survive the FRR event.
 - [x] **Section 5 (40 pts):** BGP RTBH built on R19 (trigger) with community `65200:666` → next-hop `192.0.2.1` → local Null0 at every AS65200 PE/ASBR, tested with a tagged static redistribution and confirmed edge-dropped via CEF. BGP Flowspec delivered as a documented design exercise (5-tuple rule example, 5-point RTBH comparison, explicit platform-limitation rationale citing the missing `ipv4 flowspec` AFI/SAFI on IOS 15.2/7200). RSVP neighbor authentication (MD5 key-chain) plus challenge/response built on all AS65100 TE-bearing links, independently layered with LDP session MD5 auth on the same links, and a negative mismatched-key test performed with full recovery.
-- [x] **Section 6 (45 pts):** IPv6 baseline applied per the topology reference. **6VPE** delivered by migrating VRF GREEN from classic `ip vrf` to `vrf definition` with dual `address-family ipv4`/`ipv6` (documented as the required model on IOS 15.2(4)M11), VPNv6 AF activated R1/R2/R15↔RRs, new IPv6 PE-CE subnets added on the Green eBGP legs, and VPNv6-vs-6PE scoping explicitly verified (RD/RT-tagged VRF route vs. global table). New **IPv6 eBGP PE-CE** built on R15↔R17 (AS 65910 reused) confirmed coexisting with Section 2's static IPv4 PE-CE on the identical physical interface/VRF, with per-AFI origin correctness verified in both the VPNv4 and VPNv6 tables.
+- [x] **Section 6 (45 pts):** IPv6 baseline applied per the topology reference. **6VPE** delivered by migrating VRF GREEN from classic `ip vrf` to `vrf definition` with dual `address-family ipv4`/`ipv6` (documented as the required model on IOS 15.2(4)M11), VPNv6 AF activated R31/R2/R15↔RRs, new IPv6 PE-CE subnets added on the Green eBGP legs, and VPNv6-vs-6PE scoping explicitly verified (RD/RT-tagged VRF route vs. global table). New **IPv6 eBGP PE-CE** built on R15↔R17 (AS 65910 reused) confirmed coexisting with Section 2's static IPv4 PE-CE on the identical physical interface/VRF, with per-AFI origin correctness verified in both the VPNv4 and VPNv6 tables.
 
 **Total: 300 points — all sections solved.**

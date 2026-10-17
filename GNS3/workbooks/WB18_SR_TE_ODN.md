@@ -13,7 +13,7 @@
 > **Snapshot** before/after each section.
 
 > **Reference (SR-MPLS from WB16):** prefix-SID index = router number (R1=1 … R8=8, 16000+N).
-> Headend examples: **R1** (150.1.1.1) → tailend **R8** (150.1.8.8) within AS 65100.
+> Headend examples: **R1** (150.1.31.31) → tailend **R8** (150.1.8.8) within AS 65100.
 > **SR-PCE** runs on **R30** (150.3.30.30 — RR of AS 65300, reused as PCE).
 > Core links + adjacency-SIDs per `00_topology_reference.md`.
 
@@ -47,7 +47,7 @@ Headend **R1**, endpoint **R8**.
 
 ## Section 2 — Autoroute Include (steering) [3 points]
 
-- [ ] **Task 2.1 [2 points]** — Add **autoroute include** to the R1→R8 policy so selected prefixes (e.g. 150.1.8.8/32 and prefixes behind R8) are steered into the policy via IGP shortcut (`autoroute include ipv4 <prefix>` or `autoroute include all` under the candidate-path/policy).
+- [ ] **Task 2.1 [2 points]** — Add **autoroute include** to the R31→R8 policy so selected prefixes (e.g. 150.1.8.8/32 and prefixes behind R8) are steered into the policy via IGP shortcut (`autoroute include ipv4 <prefix>` or `autoroute include all` under the candidate-path/policy).
 - [ ] **Task 2.2 [1 point]** — Optionally set an autoroute **metric** so the policy competes correctly with the native IGP path.
 - [ ] **Task 2.3 [0 points — verification]** — Confirm the RIB now resolves the steered prefixes via the SR policy.
 
@@ -76,7 +76,7 @@ Headend **R1**, endpoint **R8**.
 
 ## Section 4 — Explicit Segment-Lists (adjacency-SIDs) [4 points]
 
-- [ ] **Task 4.1 [2 points]** — Define an **explicit segment-list** on R1 that pins a specific hop-by-hop path to R8 using **adjacency-SIDs** (from WB16) — e.g. force R1→R3→R4→R6→R5→R8 rather than the shortest path.
+- [ ] **Task 4.1 [2 points]** — Define an **explicit segment-list** on R31 that pins a specific hop-by-hop path to R8 using **adjacency-SIDs** (from WB16) — e.g. force R31→R3→R4→R6→R5→R8 rather than the shortest path.
 - [ ] **Task 4.2 [1 point]** — Create an SR policy (new color, e.g. 200) whose candidate-path uses the explicit segment-list with higher **preference** than any dynamic path.
 - [ ] **Task 4.3 [1 point]** — Confirm the policy is UP and forwards over the exact pinned path (verify each adjacency-SID in the imposed label stack).
 - [ ] **Task 4.4 [0 points — verification]** — Fail one adjacency in the list; confirm the explicit path goes down (no auto-reroute unless a lower-pref dynamic path exists).

@@ -1,7 +1,7 @@
 # WB08 — MPLS Traffic Engineering Solutions (AS 65100)
 
 **Platform:** Cisco 7200, IOS 15.2(4)M11 — **IOS Classic syntax**
-**Scope:** MPLS-TE across the IS-IS L2 core (R1–R8)
+**Scope:** MPLS-TE across the IS-IS L2 core (R31, R2–R8)
 **Prerequisite:** WB00–WB07 complete (IGP/IS-IS up, LDP running, L3VPN operational)
 
 ---
@@ -24,8 +24,8 @@ Core links used by TE (from `00_topology_reference.md`):
 
 | Link | A-side int / IP | B-side int / IP |
 |------|-----------------|-----------------|
-| R1↔R3 | f0/0 10.1.3.1 | f0/0 10.1.3.3 |
-| R1↔R2 | f4/0 10.1.2.1 | f3/0 10.1.2.2 |
+| R31↔R3 | f0/0 10.1.3.1 | f0/0 10.1.3.3 |
+| R31↔R2 | f4/0 10.1.2.1 | f3/0 10.1.2.2 |
 | R2↔R4 | f0/0 10.2.4.2 | f0/0 10.2.4.4 |
 | R3↔R4 | g1/0 10.3.4.3 | g1/0 10.3.4.4 |
 | R3↔R5 | g2/0 10.3.5.3 | g2/0 10.3.5.5 |
@@ -34,7 +34,7 @@ Core links used by TE (from `00_topology_reference.md`):
 | R5↔R8 | f0/0 10.5.8.5 | f0/0 10.5.8.8 |
 | R5↔R6 | f3/0 10.5.6.5 | f3/0 10.5.6.6 |
 
-**Tunnel demo:** `Tunnel1` on R1 → R5 (150.1.5.5) via explicit path **R1 → R3 → R5**.
+**Tunnel demo:** `Tunnel1` on R31 → R5 (150.1.5.5) via explicit path **R1 → R3 → R5**.
 
 ---
 
@@ -71,11 +71,11 @@ Each core interface needs:
 ```
 Below, FastEthernet pools are set to 75000 kbps (75% of 100M) and GigabitEthernet pools to 750000 kbps (75% of 1G). Adjust to taste; sub-pool left to default.
 
-### R1 (PE — tunnel head-end)
+### R31 (PE — tunnel head-end)
 
 ```
 interface Loopback0
- ip address 150.1.1.1 255.255.255.255
+ ip address 150.1.31.31 255.255.255.255
 !
 interface FastEthernet0/0
  description R1->R3
@@ -276,7 +276,7 @@ mpls traffic-eng tunnels
 
 ### 4.1 Named explicit path on R1
 
-Path uses the **next-hop IP** of each hop along R1→R3→R5. R1 exits via f0/0 to 10.1.3.3 (R3), then R3 to 10.3.5.5 (R5).
+Path uses the **next-hop IP** of each hop along R31→R3→R5. R1 exits via f0/0 to 10.1.3.3 (R3), then R3 to 10.3.5.5 (R5).
 
 ```
 ip explicit-path name R1-R3-R5 enable
@@ -438,7 +438,7 @@ show ip rsvp reservation detail
 show ip rsvp interface
 show ip rsvp sender
 ```
-`show ip rsvp interface` should show the reservable/allocated bandwidth per interface. Along R1→R3→R5, you should see 20000 kbps reserved for the Tunnel1 LSP.
+`show ip rsvp interface` should show the reservable/allocated bandwidth per interface. Along R31→R3→R5, you should see 20000 kbps reserved for the Tunnel1 LSP.
 
 ### 8.3 TE topology / CSPF database
 ```

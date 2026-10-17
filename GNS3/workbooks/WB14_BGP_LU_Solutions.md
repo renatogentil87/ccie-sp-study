@@ -38,7 +38,7 @@ router bgp 65100
   neighbor 10.5.11.11 activate
   neighbor 10.5.11.11 send-label
   ! advertise AS65100 PE loopbacks with labels
-  network 150.1.1.1 mask 255.255.255.255
+  network 150.1.31.31 mask 255.255.255.255
   network 150.1.2.2 mask 255.255.255.255
  exit-address-family
 !
@@ -67,7 +67,7 @@ router bgp 65100
  address-family ipv4 unicast
   neighbor 10.6.12.12 activate
   neighbor 10.6.12.12 send-label
-  network 150.1.1.1 mask 255.255.255.255
+  network 150.1.31.31 mask 255.255.255.255
   network 150.1.2.2 mask 255.255.255.255
  exit-address-family
 !
@@ -202,7 +202,7 @@ router bgp 65100
   neighbor 150.1.8.8 next-hop-self
  exit-address-family
 !
-! R7/R8 (RRs): activate PEs R1/R2 + ASBRs R5/R6 with send-label + route-reflector-client
+! R7/R8 (RRs): activate PEs R31/R2 + ASBRs R5/R6 with send-label + route-reflector-client
 ```
 
 ### 2.3 AS65300 — ASBRs R20/R21 to RR R30
@@ -252,8 +252,8 @@ R21# show mpls forwarding-table | include 150.3
 
 ! Data plane — labeled traceroute end to end
 R1#  traceroute mpls ipv4 150.3.23.23/32            ! LSP ping/trace across all 3 ASes
-R1#  traceroute 150.3.23.23 source 150.1.1.1        ! label stack visible at each P/ASBR hop
-R1#  ping 150.3.23.23 source 150.1.1.1
+R1#  traceroute 150.3.23.23 source 150.1.31.31        ! label stack visible at each P/ASBR hop
+R1#  ping 150.3.23.23 source 150.1.31.31
 ```
 
 > A successful `traceroute mpls` shows a continuous label-switched path: LDP label inside AS65100 → BGP-LU swap at R5/R6 → LDP inside AS65200 → BGP-LU swap at R12 → LDP inside AS65300 → pop at R23. No AS's loopbacks were leaked into another AS's IGP.
@@ -282,7 +282,7 @@ R1#  ping 150.3.23.23 source 150.1.1.1
 ## Completion Checklist
 
 - [ ] eBGP-LU up on all 4 inter-AS links (R5↔R11, R6↔R12, R6↔R20, R12↔R21) with send-label both ends
-- [ ] AS65100 PE loopbacks (150.1.1.1/2.2) advertised with labels into AS65200/65300
+- [ ] AS65100 PE loopbacks (150.1.31.31/2.2) advertised with labels into AS65200/65300
 - [ ] AS65300 PE loopbacks (150.3.20–23) advertised with labels into AS65100/65200
 - [ ] ASBRs set next-hop-self under labeled-unicast toward their RRs
 - [ ] RRs reflect labeled unicast to PE clients with send-label

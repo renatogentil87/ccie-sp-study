@@ -13,14 +13,14 @@
 
 | PE | PE-CE interface(s) (ingress) | Core-facing interface(s) (egress) |
 |----|------------------------------|-----------------------------------|
-| R1 | g1/0 (R9), f3/0 (R10), f4/1 (R32), g1/0… | f0/0 (→R3), f4/0 (→R2) |
+| R31 | g1/0 (R9), f3/0 (R10), f4/1 (R32), g1/0… | f0/0 (→R3), f4/0 (→R2) |
 | R14 | f3/0 (R25), f4/0 (R28 L2) | g2/0 (→R12), g1/0 (→R13) |
 
 > On MPLS imposition, `set mpls experimental topmost` writes the EXP bits of the top (and, by default on IOS, imposed) label. Marking EXP at ingress is what lets P routers (R3/R4 etc.) do EXP-based PHB without seeing the customer DSCP.
 
 ---
 
-## 2. Class maps (identical on R1 and R14)
+## 2. Class maps (identical on R31 and R14)
 
 ```
 class-map match-any VOICE
@@ -92,7 +92,7 @@ policy-map EGRESS
 ```
 ! ---- Ingress on PE-CE interfaces ----
 interface GigabitEthernet1/0
- description R1->R9 (CE Green, eBGP 65910)
+ description R31->R9 (CE Green, eBGP 65910)
  service-policy input INGRESS
 !
 interface FastEthernet3/0

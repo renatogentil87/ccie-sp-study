@@ -14,7 +14,7 @@
 > Take an **EVE-NG snapshot/export** at each checkpoint so you can roll back cleanly.
 
 > **Reference:**
-> ASBRs **R5** (150.1.5.5) / **R6** (150.1.6.6, AS65100), PEs **R1** (150.1.1.1) / **R14** (150.2.14.14).
+> ASBRs **R5** (150.1.5.5) / **R6** (150.1.6.6, AS65100), PEs **R1** (150.1.31.31) / **R14** (150.2.14.14).
 > Simulate an RPKI validator (RTR cache), a TACACS+ server, and a gNMI client reachable from the nodes.
 > MACsec on a PE-PE / PE-CE p2p link (e.g. R5↔R6 10.5.6.0/24 or R1 access). Links per `00_topology_reference.md`.
 

@@ -18,9 +18,9 @@ Core interfaces (AS 65100) that need PIM — from topology:
 
 | Router | PIM interfaces |
 |--------|----------------|
-| R1 | f0/0(→R3), f4/0(→R2), Lo0 |
-| R2 | f3/0(→R1), f0/0(→R4), Lo0 |
-| R3 | f0/0(→R1), g1/0(→R4), g2/0(→R5), f3/0(→R7), Lo0 |
+| R31 | f0/0(→R3), f4/0(→R2), Lo0 |
+| R2 | f3/0(→R31), f0/0(→R4), Lo0 |
+| R3 | f0/0(→R31), g1/0(→R4), g2/0(→R5), f3/0(→R7), Lo0 |
 | R4 | f0/0(→R2), g1/0(→R3), g2/0(→R6), Lo0 |
 | R5 | g2/0(→R3), f0/0(→R8), f3/0(→R6), Lo0 |
 | R6 | g2/0(→R4), f3/0(→R5), Lo0 |
@@ -187,9 +187,9 @@ ip msdp originator-id Loopback0
 
 ## 4. mVPN Profile 0 (Default MDT, PIM-in-the-core) for VRF GREEN
 
-Profile 0 = GRE-encapsulated multicast using PIM in the provider core (default + data MDT). Applied on the Green PEs (R1, R2 in AS65100).
+Profile 0 = GRE-encapsulated multicast using PIM in the provider core (default + data MDT). Applied on the Green PEs (R31, R2 in AS65100).
 
-### 4.1 VRF GREEN mVPN config (on each Green PE — e.g. R1 and R2)
+### 4.1 VRF GREEN mVPN config (on each Green PE — e.g. R31 and R2)
 
 ```
 ip vrf GREEN
