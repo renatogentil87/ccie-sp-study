@@ -197,3 +197,43 @@ Legend: score /10 · ⚠️ = flagged for review (≤7 or unknown) · 🅿️ = 
 | TS6 | Classic LFA shows "No FRR backup" for a prefix. R1 primary path to R6 is via R3. R2 is the only other neighbor. R2 has two ECMP paths to R6 — one goes back through R1. Why no backup? (LFA inequality fails: Distance(R2,R6) = 30, Distance(R2,R1) + Distance(R1,R6) = 10+20 = 30. 30 < 30 = FALSE. Equal doesn't pass. Fix: enable TI-LFA — it forces the path with segment labels.) | — new | 2026-10-01 |
 | TS7 | Inter-AS Option C configured. PE in Gold sees VPN route from Emerald with next-hop 1.1.1.1. `show cef vrf CUST_A` says "no route" for 1.1.1.1. VPN route present in BGP but not installed. What's wrong? (No BGP-LU between ASBRs. PE can't resolve the remote PE's loopback. Fix: configure eBGP labeled-unicast between ASBRs + advertise PE loopbacks with labels. NOT IGP redistribution.) | — new | 2026-10-01 |
 | TS8 | Mapping server configured on R3 for R1's loopback (index 101). R6 shows 16101 in label table. But R4 (also in the SR domain) doesn't show 16101. R4 has a different mapping server with index 111 for the same prefix. What's wrong? (Conflicting mapping servers. Two routers advertising different SIDs for the same prefix. R4 picks closer source. Fix: ALL mapping servers must advertise IDENTICAL indexes. Inconsistent = inconsistent labels = forwarding breaks.) | — new | 2026-10-01 |
+
+
+## QoS — DiffServ / MQC (from WB10 study + Udemy QoS course Oct 2026)
+
+| ID | Question / Answer | Score | Date |
+|----|-------------------|-------|------|
+| QS1 | What are the 3 steps of MQC (Modular QoS CLI)? (1. class-map — classify traffic. 2. policy-map — define actions. 3. service-policy — apply to interface. Every QoS config follows this pattern.) | — new | 2026-10-15 |
+| QS2 | What DSCP value is EF and what is it used for? (EF = 46 = Expedited Forwarding. Used for voice/real-time traffic. Gets strict priority queue (LLQ). EXP equivalent = 5.) | — new | 2026-10-15 |
+| QS3 | Explain the AF naming: what does AF21 mean? (AF = Assured Forwarding. First digit (2) = class/importance (1-4, higher=more important). Second digit (1) = drop precedence (1=low, 2=med, 3=high). AF21 = class 2, low drop. DSCP value = 18.) | — new | 2026-10-15 |
+| QS4 | What's the difference between policing and shaping? (Policing: exceeds rate → DROP or REMARK immediately. No buffering. Bursty. Used at ingress/boundaries. Shaping: exceeds rate → BUFFER and release at shaped rate. Smooth output. Adds latency. Used at egress.) | — new | 2026-10-15 |
+| QS5 | What is H-QoS and where is it used in SP networks? (Hierarchical QoS = nested policies. Parent shapes total rate. Child classifies/prioritizes within shaped rate. Used on ASBR egress, PE-CE egress. Example: parent shape 80%, child: voice priority 20%, business police 50%.) | — new | 2026-10-15 |
+| QS6 | On a P router in the MPLS core, do you match DSCP or EXP? Why? (Match MPLS EXP (topmost). P routers don't look inside the MPLS packet at the IP header. They only see the EXP bits on the top label. class-map: match mpls experimental topmost 5.) | — new | 2026-10-15 |
+| QS7 | What is WRED and why is it better than tail-drop? (Weighted Random Early Detection. Selectively drops packets based on drop precedence BEFORE queue is full. AF13 (high drop) dropped first, AF11 (low drop) survives longer. Avoids TCP global synchronization where tail-drop causes ALL TCP flows to back off simultaneously.) | — new | 2026-10-15 |
+| QS8 | Explain uniform vs pipe mode for MPLS QoS. (Uniform: DSCP copied to EXP at imposition, EXP copied back to DSCP at disposition. Core changes propagate to customer. Pipe: EXP set independently by SP. Customer DSCP preserved underneath. Egress PE queues on EXP. Short-pipe: like pipe but egress PE queues on DSCP.) | — new | 2026-10-15 |
+| QS9 | How does DSCP map to MPLS EXP? (DSCP is 6 bits (64 values), EXP is 3 bits (8 values). Default: EXP = top 3 bits of DSCP. EF(46)→EXP 5, AF41(34)→EXP 4, AF21(18)→EXP 2, CS6(48)→EXP 6, default(0)→EXP 0.) | — new | 2026-10-15 |
+| QS10 | What is LLQ and when do you use it? (Low Latency Queuing = priority queue with implicit policer. Traffic gets strict priority — served FIRST, before any other queue. Used for voice (EF). The implicit policer prevents voice from starving other classes. Config: priority percent 20 under class VOICE in policy-map.) | — new | 2026-10-15 |
+
+## Multicast — PIM / IGMP (from WB11 study + Udemy Multicast course Oct 2026)
+
+| ID | Question / Answer | Score | Date |
+|----|-------------------|-------|------|
+| MC1 | What's the difference between PIM Sparse Mode and Dense Mode? (Dense: flood-and-prune — multicast sent everywhere, routers prune if no receivers. Wastes bandwidth. Sparse: explicit join — traffic only sent where receivers exist. Uses RP (Rendezvous Point) for initial join. SP networks always use Sparse Mode.) | — new | 2026-10-15 |
+| MC2 | What is the role of the RP (Rendezvous Point) in PIM-SM? (RP is the meeting point for sources and receivers. Receivers send (*,G) join toward RP. Sources register with RP. RP forwards traffic down the shared tree. After SPT switchover, traffic flows directly source-to-receiver on the shortest path tree (S,G), bypassing RP.) | — new | 2026-10-15 |
+| MC3 | What is PIM-SSM and how does it differ from SM? (Source-Specific Multicast. No RP needed. Receivers join (S,G) directly — they specify both the source AND the group. Uses IGMPv3 (which supports source filtering). Only SPT, no shared tree. Default range: 232.0.0.0/8. Simpler, more secure, no RP infrastructure.) | — new | 2026-10-15 |
+| MC4 | What are the 3 RP discovery mechanisms? (1. Static RP — manually configured on every router. 2. Auto-RP — Cisco proprietary, RP-announce + RP-discovery using 224.0.1.39/40. 3. BSR (Bootstrap Router) — standards-based, BSR collects RP candidates and distributes RP-set to all routers via hop-by-hop flooding.) | — new | 2026-10-15 |
+| MC5 | What IGMP versions exist and what's the key difference? (IGMPv1: basic join/leave, no explicit leave message. IGMPv2: adds explicit leave + group-specific query (faster leave). IGMPv3: adds source filtering — host can say "I want group G from source S only." Required for PIM-SSM.) | — new | 2026-10-15 |
+| MC6 | What is the SPT switchover and when does it happen? (When a receiver gets traffic via the shared tree (*,G) through RP, the last-hop router can switch to the Shortest Path Tree (S,G) directly from the source. Default: switchover immediately after first packet. Saves RP from being a bottleneck. Controlled by: ip pim spt-threshold.) | — new | 2026-10-15 |
+| MC7 | What is RPF (Reverse Path Forwarding) and why is it critical for multicast? (RPF checks: "did this multicast packet arrive on the interface I would use to reach the SOURCE?" If yes → forward. If no → drop (loop prevention). RPF uses the unicast routing table to determine the correct incoming interface. Broken RPF = broken multicast.) | — new | 2026-10-15 |
+| MC8 | What is MSDP and when is it used? (Multicast Source Discovery Protocol. Used between RPs in different PIM domains (different ASes). RP1 tells RP2 about active sources via SA (Source-Active) messages. Enables inter-domain multicast without shared trees crossing AS boundaries. Peers between RPs using TCP.) | — new | 2026-10-15 |
+| MC9 | What is BIDIR-PIM and when would you use it? (Bidirectional PIM. Traffic flows both UP and DOWN the shared tree — no SPT switchover, no (S,G) state. Only (*,G) state exists. Used for many-to-many applications (video conferencing, financial trading). Advantage: scales better because no per-source state. Disadvantage: all traffic through RP, no shortest path.) | — new | 2026-10-15 |
+| MC10 | What is the difference between mVPN Profile 0 and Profile 3? (Profile 0: Default MDT using PIM/GRE tunnel in the core. BGP auto-discovery. Data MDT for high-rate sources. Simple, widely deployed. Profile 3: mLDP P2MP core tree with BGP C-multicast signaling. No PIM in the core. More scalable for large deployments. BGP handles both source discovery and receiver signaling.) | — new | 2026-10-15 |
+
+## Priority review queue (updated 2026-10-15)
+
+- QS1-QS10: QoS DiffServ/MQC — new, needs first session
+- MC1-MC10: Multicast PIM/IGMP — new, needs first session
+- QS6: P router EXP matching — common exam trap
+- QS8: Uniform vs pipe — always tested in design phase
+- MC3: PIM-SSM — exam favorite, no RP needed
+- MC7: RPF — #1 multicast troubleshooting concept

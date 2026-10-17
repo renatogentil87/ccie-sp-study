@@ -3,6 +3,47 @@
 **Platform:** Cisco 7200 (C7200-ADVENTERPRISEK9-M), IOS 15.2(4)M11
 **GNS3:** Local on Mac (Dynamips)
 
+> **⚠️ TOPOLOGY CHANGE (October 17, 2026):**
+> R1 was replaced by **R31** due to Dynamips process corruption.
+>
+> **R31 replaces R1 with these connections:**
+>
+> | R31 Interface | Connects To | Subnet | Purpose |
+> |---------------|-------------|--------|---------|
+> | f0/0 | R29 f0/0 | — | VLAN 100 L2 (VPWS/VPLS) |
+> | f3/0 | R2 f3/0 | 10.31.2.0/24 | IS-IS core |
+> | f4/0 | R9 g1/0 | 192.168.1.0/24 | Green PE-CE eBGP 65910 |
+> | g1/0 | R32 g1/0 | 192.168.3.0/24 | Blue PE-CE eBGP 65025 |
+> | g2/0 | R3 f0/0 | 10.31.3.0/24 | IS-IS core |
+> | Loopback0 | — | 150.1.31.31/32 | Router-ID |
+> | IS-IS NET | — | 49.0001.1500.0103.1031.00 | |
+>
+> **R2 additional connection:**
+>
+> | R2 Interface | Connects To | Subnet | Purpose |
+> |--------------|-------------|--------|---------|
+> | g2/0 | R9 g2/0 | 192.168.13.0/24 | Green PE-CE eBGP 65910 (second link) |
+>
+> **R9 is now dual-homed** to R31 (f4/0, 192.168.1.0/24) and R2 (g2/0, 192.168.13.0/24)
+> R10 connects to R31 (f3/0, 192.168.2.0/24) and R2 (g1/0, 192.168.4.0/24)
+>
+> **PE roles after change:**
+> - **R31** = PE for Green (R9, R10), Blue (R32), Red VPLS (R29) — replaces R1
+> - **R2** = PE for Green (R9 second link, R10)
+> - R5, R6 = ASBRs (unchanged)
+>
+> **AS 65100 updated router list:**
+> | Router | Role | Loopback0 |
+> |--------|------|-----------|
+> | R31 | PE | 150.1.31.31/32 |
+> | R2 | PE | 150.1.2.2/32 |
+> | R3 | P | 150.1.3.3/32 |
+> | R4 | P | 150.1.4.4/32 |
+> | R5 | ASBR | 150.1.5.5/32 |
+> | R6 | ASBR | 150.1.6.6/32 |
+> | R7 | RR | 150.1.7.7/32 |
+> | R8 | RR | 150.1.8.8/32 |
+
 ---
 
 ## Autonomous Systems

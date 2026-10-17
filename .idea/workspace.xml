@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="bbc36219-9f70-493e-88a1-8ab58de33b1b" name="Changes" comment="" />
+    <list default="true" id="bbc36219-9f70-493e-88a1-8ab58de33b1b" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/GNS3/workbooks/WB10_QoS.md" beforeDir="false" afterPath="$PROJECT_DIR$/GNS3/workbooks/WB10_QoS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/study-notes-consolidated/PORTABLE_AI_CONTEXT.md" beforeDir="false" afterPath="$PROJECT_DIR$/study-notes-consolidated/PORTABLE_AI_CONTEXT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/study-notes-consolidated/flashcard-deck.md" beforeDir="false" afterPath="$PROJECT_DIR$/study-notes-consolidated/flashcard-deck.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/study-notes-consolidated/multicast.md" beforeDir="false" afterPath="$PROJECT_DIR$/study-notes-consolidated/multicast.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/study-notes-consolidated/qos.md" beforeDir="false" afterPath="$PROJECT_DIR$/study-notes-consolidated/qos.md" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 2,
@@ -27,7 +35,7 @@
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "release/v1.15.5",
+    "git-widget-placeholder": "main",
     "last_opened_file_path": "/Users/rrdog/Desktop/ccie-sp-study",
     "nodejs_package_manager_path": "npm"
   }
