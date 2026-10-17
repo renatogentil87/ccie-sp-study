@@ -982,7 +982,7 @@ show mpls ldp discovery
 show mpls forwarding-table
 ```
 
-Expected: `show mpls ldp neighbor` shows every expected peer in state `Oper` with `MD5` authentication noted (`Peer LDP Ident ... ; Peer state: Oper`). `show mpls ldp bindings` should show exactly one local and one remote binding per advertised /32 loopback — no bindings for any 10.x/20.x/30.x/192.168.x core or PE-CE subnet, confirming label filtering is scoped correctly. `show mpls interfaces` must show `No` under the Oper column for every PE-CE/CE-facing interface, and `Yes` for every core/inter-AS interface. `show mpls forwarding-table` on, e.g., R1 should show a non-aggregate label entry pointing toward each remote PE/P/ASBR/RR loopback.
+Expected: `show mpls ldp neighbor` shows every expected peer in state `Oper` with `MD5` authentication noted (`Peer LDP Ident ... ; Peer state: Oper`). `show mpls ldp bindings` should show exactly one local and one remote binding per advertised /32 loopback — no bindings for any 10.x/20.x/30.x/192.168.x core or PE-CE subnet, confirming label filtering is scoped correctly. `show mpls interfaces` must show `No` under the Oper column for every PE-CE/CE-facing interface, and `Yes` for every core/inter-AS interface. `show mpls forwarding-table` on, e.g., R31 should show a non-aggregate label entry pointing toward each remote PE/P/ASBR/RR loopback.
 
 **Rationale:** LDP router-id pinned to Loopback0 keeps the LDP identity stable regardless of which physical interface comes up first. Session protection avoids a full LDP resync (and transient label/traffic loss) after a brief flap. Label filtering to /32-only keeps the label space and LIB size minimal and, critically, prevents LDP from ever assigning a label to a PE-CE or customer subnet, which would be a security/leak concern since those subnets must only ever be reachable via the VPN (BGP/VRF) control plane, not the global LDP-labeled path. MD5 on LDP TCP sessions prevents a rogue LSR from forming a session and injecting bogus label bindings. Disabling LDP on CE-facing links prevents an untrusted customer router from ever becoming an LDP peer of the SP core.
 
@@ -1074,7 +1074,7 @@ router bgp 65100
  exit-address-family
 ```
 
-> R8 is configured identically to R7 (swap in R8's own router-id/loopback and peer to R7 as a non-client iBGP peer alongside the clients) — omitted here for brevity since it is a mechanical mirror. R2, R5, R6 are configured identically to R1's stanza (peer to both 150.1.7.7 and 150.1.8.8), substituting their own router-id.
+> R8 is configured identically to R7 (swap in R8's own router-id/loopback and peer to R7 as a non-client iBGP peer alongside the clients) — omitted here for brevity since it is a mechanical mirror. R2, R5, R6 are configured identically to R31's stanza (peer to both 150.1.7.7 and 150.1.8.8), substituting their own router-id.
 
 #### R19 (RR, AS65200) — single RR for R11-R16
 
@@ -1140,7 +1140,7 @@ router bgp 65200
  exit-address-family
 ```
 
-> R11-R16 each mirror R1's client-side stanza, peering only to 150.2.19.19, substituting their own router-id/loopback.
+> R11-R16 each mirror R31's client-side stanza, peering only to 150.2.19.19, substituting their own router-id/loopback.
 
 #### R30 (RR, AS65300) — single RR for R20-R23
 
@@ -1190,7 +1190,7 @@ router bgp 65300
  exit-address-family
 ```
 
-> R20-R23 each mirror R1's client-side stanza, peering only to 150.3.30.30.
+> R20-R23 each mirror R31's client-side stanza, peering only to 150.3.30.30.
 
 #### eBGP inter-AS sessions + path manipulation
 
@@ -1621,7 +1621,7 @@ router bgp 65200
 
 > Note: R16 now carries two VRFs (GREEN and YELLOW) on two different physical interfaces plus the Red L2 AC on a third — each `ip vrf forwarding` is scoped per-interface so there is no leakage between them; RT GREEN (`65910:1`) and RT YELLOW (`65024:1`) are entirely distinct values so BGP VPNv4 import/export never mixes the two VRF's routes.
 
-#### VRF BLUE — R1 (facing R32)
+#### VRF BLUE — R31 (facing R32)
 
 ```
 hostname R1
@@ -2371,7 +2371,7 @@ Expected: `show policy-map interface GigabitEthernet1/0` shows the `MARK-GREEN-I
 
 ### Q4.1 — MPLS Traffic Engineering with explicit path and FRR
 
-#### Enable MPLS-TE extensions network-wide (R1-R8)
+#### Enable MPLS-TE extensions network-wide (R31, R2-R8)
 
 ```
 hostname R1

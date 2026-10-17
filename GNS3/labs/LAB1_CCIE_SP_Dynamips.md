@@ -10,7 +10,7 @@
 
 | AS | IGP | Role summary |
 |---|---|---|
-| 65100 | IS-IS Level-2 only | R1,R2 = PE; R3,R4 = P; R5,R6 = ASBR; R7,R8 = RR |
+| 65100 | IS-IS Level-2 only | R31,R2 = PE; R3,R4 = P; R5,R6 = ASBR; R7,R8 = RR |
 | 65200 | OSPF Area 0 | R11,R13 = P; R12 = ASBR; R14,R15,R16 = PE; R19 = RR |
 | 65300 | IS-IS Level-2 only | R20,R21 = ASBR/PE; R22,R23 = PE; R30 = RR |
 
@@ -36,7 +36,7 @@ Requirements:
 - Run IS-IS as **Level-2-only** on every router and every core-facing interface in both ASes. Do not form Level-1 adjacencies.
 - Advertise all Loopback0 interfaces into IS-IS. Loopback0 interfaces must be advertised as **passive** (no IS-IS hellos sent on loopbacks).
 - Enable **wide metrics** (`metric-style wide`) network-wide in both ASes.
-- Configure all core point-to-point physical links (R1-R3, R1-R2, R2-R4, R3-R4, R3-R5, R3-R7, R4-R6, R5-R8, R5-R6 in AS65100; R20-R21, R20-R22, R21-R23, R22-R23, R23-R30 in AS65300) for **IS-IS network type point-to-point**, even where the underlying GNS3 link is an Ethernet segment.
+- Configure all core point-to-point physical links (R31-R3, R31-R2, R2-R4, R3-R4, R3-R5, R3-R7, R4-R6, R5-R8, R5-R6 in AS65100; R20-R21, R20-R22, R21-R23, R22-R23, R23-R30 in AS65300) for **IS-IS network type point-to-point**, even where the underlying GNS3 link is an Ethernet segment.
 - Set the reference bandwidth so that Gi links and Fa links are differentiated: Gi1/0, Gi2/0 interfaces should carry a lower IS-IS metric than Fa0/0, Fa3/0, Fa4/0 interfaces on parallel/alternate paths, reflecting a 1:10 bandwidth differential (Gi ≈ 1000 Mbps, Fa ≈ 100 Mbps).
 - Authenticate all IS-IS hello PDUs and all LSPs network-wide using **HMAC-MD5**, key-string `CCIESPL2`. A misconfigured or missing key on any link must not be allowed to form an adjacency.
 - Configure **LDP-IGP synchronization** (`mpls ldp sync`) on all core-facing interfaces in both ASes (LDP itself is configured in Q1.3 — IS-IS must be ready to hold routes until LDP comes up once configured).
@@ -81,7 +81,7 @@ Requirements:
 Build the full BGP overlay across all three ASes.
 
 **iBGP (per-AS, route-reflector based):**
-- AS65100: configure R7 and R8 as **redundant Route-Reflectors**. Every other AS65100 router (R1-R6) peers with both R7 and R8 as RR clients. Do not create a full iBGP mesh.
+- AS65100: configure R7 and R8 as **redundant Route-Reflectors**. Every other AS65100 router (R31, R2-R6) peers with both R7 and R8 as RR clients. Do not create a full iBGP mesh.
 - AS65200: configure R19 as the single Route-Reflector. R11-R16 peer with R19 as RR clients.
 - AS65300: configure R30 as the single Route-Reflector. R20-R23 peer with R30 as RR clients.
 - All iBGP sessions must use **Loopback0** as the update-source and must use **next-hop-self** appropriately so that iBGP learned routes resolve via the LDP-labeled IGP path, not a recursive lookup through a client's physical interface.
@@ -166,10 +166,10 @@ Extend the Red customer's Layer-2 domain into a multipoint VPLS instance, and ad
 - Build a VPLS instance (VPLS-ID / VFI, candidate's choice, e.g. VFI name `RED-VPLS`, VC-ID 100) with PEs **R14 and R16** as the N-PE (network-facing PE) VPLS core members, full-meshed with each other via LDP-signaled pseudowires (same signaling family as Q2.2, but multipoint VFI instead of a p2p xconnect).
 - Each N-PE's local attachment circuit for VPLS is the same VLAN-100 sub-interface/AC used in Q2.2 — note that a single AC cannot simultaneously be a VPWS xconnect **and** a VPLS AC; restructure R14's and R16's local attachment circuits so that this task's requirement (VPLS) is what is actually active at the end of the lab, and clearly note in your configuration which task (Q2.2 vs Q2.3) is the final intended state for the R14/R16 ACs (the exam intent is that Q2.2 demonstrates VPWS capability on a redundant/lab-only link, while Q2.3's full-mesh VPLS is the production design — resolve the overlap by using a second VLAN or sub-interface for the VPWS demo if your topology allows, or state the conflict explicitly).
 
-**H-VPLS with R1 as U-PE:**
+**H-VPLS with R31 as U-PE:**
 - Add **R1** as a third VPLS site acting as a **U-PE (user-facing PE / access node)** in a hierarchical VPLS (H-VPLS) design, connecting upstream to the N-PE core (R14 and/or R16) via an **MPLS access pseudowire** (QinQ or VLAN-based H-VPLS, candidate's choice given 15.2(4)M11 feature support) rather than joining the full VPLS mesh directly.
-- R1's local attachment circuit is Gi2/0 toward R29 (VLAN 100 per the topology reference).
-- The H-VPLS design must guarantee that R1 (U-PE) does **not** participate in BGP auto-discovery or LDP signaling with every other VPLS N-PE — it should only signal toward its designated upstream N-PE(s), consistent with the split-horizon / loop-avoidance rules of hierarchical VPLS (U-PE spoke sites do not need full-mesh split-horizon enforcement the way N-PEs do).
+- R31's local attachment circuit is f0/0 toward R29 (VLAN 100 per the topology reference).
+- The H-VPLS design must guarantee that R31 (U-PE) does **not** participate in BGP auto-discovery or LDP signaling with every other VPLS N-PE — it should only signal toward its designated upstream N-PE(s), consistent with the split-horizon / loop-avoidance rules of hierarchical VPLS (U-PE spoke sites do not need full-mesh split-horizon enforcement the way N-PEs do).
 - At the end of this task, R27, R28, and R29 (the three Red customer CEs) must all be in the same flooding/learning Layer-2 domain and must be able to reach each other's MAC addresses across the VPLS core, while P routers (R3, R4, R11, R13) remain unaware of VLAN 100 as an entity.
 
 ---
